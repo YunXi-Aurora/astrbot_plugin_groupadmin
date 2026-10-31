@@ -17,6 +17,7 @@ class QQAdminDB:
 
     # ====================== 字段中英文映射 ======================
     FIELD_MAP = {
+        "special_admins": "特殊权限名单",
         "join_switch": "进群审核",
         "join_max_time": "进群尝试次数",
         "join_accept_words": "进群白词",

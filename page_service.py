@@ -231,8 +231,6 @@ class QQAdminPageService:
             self.cfg.random_ban_time = updated["random_ban_time"]
         if "llm_get_msg_count" in updated:
             self.cfg.llm_get_msg_count = updated["llm_get_msg_count"]
-        if "perms" in updated:
-            self._merge_dict(self.cfg.perms, updated["perms"])
 
         perm_manager.refresh(self.cfg, self.db)
 
@@ -241,7 +239,6 @@ class QQAdminPageService:
             "admin_audit",
             "random_ban_time",
             "llm_get_msg_count",
-            "perms",
         ]
         return {
             key: copy.deepcopy(self.schema[key]) for key in keys if key in self.schema

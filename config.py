@@ -113,7 +113,7 @@ class PluginConfig(ConfigNode):
     admin_audit: bool
     random_ban_time: str
     llm_get_msg_count: int
-    perms: dict
+    official_special_admins: bool
 
     _db_version = 3
     _plugin_name: str = "astrbot_plugin_qqadmin"
@@ -180,7 +180,6 @@ class PluginConfig(ConfigNode):
             "admin_audit": self.admin_audit,
             "random_ban_time": self.random_ban_time,
             "llm_get_msg_count": self.llm_get_msg_count,
-            "perms": dict(self.perms),
         }
 
     def refresh_runtime_settings(self) -> None:
