@@ -184,8 +184,6 @@ class JoinHandle:
             return False, "黑名单用户"
 
         # 2.命中进群黑词
-        # TODO(stage2): 进群等级门槛(join_min_level)已随等级体系移除
-
         if comment:
             # 提取答案部分
             keyword = "\n答案："

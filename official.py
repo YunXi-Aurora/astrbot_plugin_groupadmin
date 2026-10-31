@@ -107,6 +107,11 @@ HELP = '''QQ群管理 · 官方机器人
 /驳回 成员OpenID 申请ID — 拒绝指定申请
 /群黑名单 — 查看黑名单
 /解除群拉黑 成员OpenID — 从黑名单移除
+/特殊权限 — 查看本群特殊权限名单
+/特殊权限 添加 @成员 — 将成员 OpenID 加入名单（仅机器人管理员/超管）
+/特殊权限 删除 @成员 — 从名单移除（仅机器人管理员/超管）
+/特殊权限 清空 — 清空名单（仅机器人管理员/超管）
+名单内成员可执行所有群管指令（需在配置中开启官方名单支持）。
 操作保留管理员权限检查，需要机器人具备群管理员身份及对应接口权限。
 官方 OpenID 与 QQ 号、私聊 UID 不互通；参数目标应使用当前群的成员 OpenID。
 原插件的改名、头衔、设管理员、精华、群公告、文件管理、自动审核和宵禁暂不通过此适配执行。'''
@@ -116,6 +121,7 @@ COMMANDS = {
     'set_group_ban': 'mute', 'cancel_group_ban': 'unmute',
     'set_group_kick': 'kick', 'set_group_block': 'block',
     'get_group_member_list': 'members', 'agree_add_group': 'approve', 'refuse_add_group': 'decline',
+    'special_admins': 'special_admins',
 }
 TOOLS = {
     'llm_set_group_ban': 'mute', 'llm_set_group_kick': 'kick', 'llm_set_group_block': 'block',
@@ -152,23 +158,33 @@ class OfficialHandle:
         return result
 
     async def authorize(self, event, api, key):
+        """名单制鉴权：AstrBot 超管直通 → 特殊权限名单 → 官方群身份。"""
         # event.is_admin is checked by AstrBot, not by model arguments.
         if event.is_admin():
             return
+        gid = api.group
+        sender = str(event.get_sender_id())
+        db = getattr(self.plugin, 'db', None)
+        cfg = getattr(self.plugin, 'cfg', None)
+        # 特殊权限名单（OpenID；需开启官方平台名单支持）
+        if db is not None:
+            try:
+                admins = await db.get(gid, 'special_admins', [])
+            except Exception:
+                admins = []
+            if sender in [str(a) for a in (admins or [])] and getattr(cfg, 'official_special_admins', False):
+                return
+        # 官方群身份（混合制基础权）
         raw, data = self._raw(event)
         author = data.get('author', {}) if isinstance(data, dict) else {}
         role = field(author, 'member_role') or field(field(raw, 'author'), 'member_role')
         if role not in {'owner', 'admin', 'member'}:
-            info = await api.request('GET', '/members/' + quote(str(event.get_sender_id()), safe=''))
-            if info.get('member_openid') != str(event.get_sender_id()):
+            info = await api.request('GET', '/members/' + quote(sender, safe=''))
+            if info.get('member_openid') != sender:
                 raise OfficialError('无法确认你在本群的身份，未执行管理操作。')
             role = info.get('member_role')
-        required = self.plugin.db.get_group_snapshot(api.group).get('perms', {}).get(key, '管理员')
-        # Preserve configured stronger restrictions; unknown/level-based rules cannot be inferred.
-        allowed = {'管理员': {'owner', 'admin'}, '群主': {'owner'},
-                   '高等级成员': {'owner', 'admin'}, '成员': {'owner', 'admin', 'member'}}
-        if role not in allowed.get(str(required), set()):
-            raise OfficialError(f'此操作需要原插件配置的「{required}」权限；你的群身份未满足要求。')
+        if role not in {'owner', 'admin'}:
+            raise OfficialError('此操作需要群管理员（或特殊权限名单/超管）身份；你的群身份未满足要求。')
 
     async def command(self, name, event, arguments, *, perm_key=None):
         action = COMMANDS.get(name)
@@ -193,6 +209,38 @@ class OfficialHandle:
             return '请在群聊中 @机器人使用群管命令；私聊不执行群管操作。'
         try:
             api = OfficialAPI(event)
+            if action == 'special_admins':
+                # 名单管理：仅超管（event.is_admin）操作；查询放开给已鉴权者
+                db = getattr(self.plugin, 'db', None)
+                gid = api.group
+                if db is None:
+                    raise OfficialError('数据库未就绪，无法管理特殊权限名单。')
+                op = str(args.get('op', '查看'))
+                users = [str(u) for u in (args.get('user_id', []) or [])]
+                if isinstance(args.get('user_id'), str):
+                    users = re.split(r'[\s,，]+', args['user_id'].strip())
+                    users = [u for u in users if u]
+                admins = [str(a) for a in (await db.get(gid, 'special_admins', []) or [])]
+                if op == '查看':
+                    return ('本群特殊权限名单：\n' + '、'.join(admins)) if admins else '本群特殊权限名单为空'
+                if not event.is_admin():
+                    raise OfficialError('管理特殊权限名单需要机器人管理员的授权。')
+                if op == '清空':
+                    await db.set(gid, 'special_admins', [])
+                    return '已清空本群特殊权限名单。'
+                if op not in ('添加', '删除'):
+                    return '操作仅支持：查看 / 添加 / 删除 / 清空。'
+                if not users:
+                    raise OfficialError('请提供成员 OpenID（可通过 /群友信息 查询）。')
+                if op == '添加':
+                    added = [u for u in users if u not in admins]
+                    admins += added
+                    await db.set(gid, 'special_admins', admins)
+                    return ('已添加特殊权限：' + '、'.join(added)) if added else '这些成员已在名单中。'
+                removed = [u for u in users if u in admins]
+                admins = [u for u in admins if u not in users]
+                await db.set(gid, 'special_admins', admins)
+                return ('已移除特殊权限：' + '、'.join(removed)) if removed else '这些成员不在名单中。'
             if action == 'status':
                 lines = ['QQ群管理接口检查']
                 for label, endpoint in [('机器人身份', '/bot_state'), ('群资料', '/info'), ('禁言接口', '/restrict_chat_setting'), ('成员接口', '/members')]:

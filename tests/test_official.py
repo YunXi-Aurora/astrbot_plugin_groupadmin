@@ -47,8 +47,13 @@ class FakeAPI:
 
 class OfficialTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.perms={}
-        self.plugin=NS(db=NS(get_group_snapshot=lambda g:{'perms':self.perms}))
+        self.admins=[]
+        self.cfg=NS(official_special_admins=True)
+        async def db_get(gid, key, default=None):
+            return self.admins if key=='special_admins' else default
+        async def db_set(gid, key, value):
+            if key=='special_admins': self.admins=list(value)
+        self.plugin=NS(db=NS(get=db_get,set=db_set),cfg=self.cfg)
         self.handler=m.OfficialHandle(self.plugin)
         self.api=FakeAPI(None)
         self.patcher=patch.object(m,'OfficialAPI',lambda e:self.api);self.patcher.start()
@@ -59,19 +64,32 @@ class OfficialTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn('私聊',result);self.assertEqual(self.api.calls,[])
     async def test_member_cannot_mute(self):
         result=await self.handler.run('mute',event(admin=False),{'user_id':TARGET,'duration':60,'need_auth':False})
-        self.assertIn('权限',result);self.assertEqual(self.mutations(),[])
+        self.assertIn('身份',result);self.assertEqual(self.mutations(),[])
     async def test_trusted_group_admin(self):
         result=await self.handler.run('mute',event(admin=False,role='admin'),{'user_id':TARGET,'duration':60})
         self.assertIn('禁言 60 秒',result)
-    async def test_owner_configuration_stronger(self):
-        self.perms['set_group_ban']='群主'
-        result=await self.handler.run('mute',event(admin=False,role='admin'),{'user_id':TARGET,'duration':60})
-        self.assertIn('群主',result);self.assertFalse(self.mutations())
-    async def test_command_preserves_its_original_permission_key(self):
-        self.perms.update(set_group_card='群主',set_group_ban='成员')
+    async def test_special_admin_list_grants_admin(self):
+        self.admins=[SENDER]
+        result=await self.handler.run('mute',event(admin=False,role='member'),{'user_id':TARGET,'duration':60})
+        self.assertIn('禁言 60 秒',result)
+    async def test_special_admin_requires_config_flag(self):
+        self.admins=[SENDER];self.cfg.official_special_admins=False
+        result=await self.handler.run('mute',event(admin=False,role='member'),{'user_id':TARGET,'duration':60})
+        self.assertIn('身份',result);self.assertFalse(self.mutations())
+    async def test_command_ignores_old_perm_key(self):
+        # perm_key 不再参与分级，群管理员身份直接通过
         result=await self.handler.command('set_group_ban',event(admin=False,role='admin'),
                                           {'user_id':TARGET,'ban_time':60},perm_key='set_group_card')
-        self.assertIn('群主',result);self.assertFalse(self.mutations())
+        self.assertIn('禁言 60 秒',result)
+    async def test_special_admins_view_and_mutate(self):
+        result=await self.handler.run('special_admins',event(admin=False,role='member'),{'op':'查看'})
+        self.assertIn('为空',result)
+        result=await self.handler.run('special_admins',event(),{'op':'添加','user_id':TARGET})
+        self.assertIn('已添加',result);self.assertEqual(self.admins,[TARGET])
+        result=await self.handler.run('special_admins',event(admin=False,role='member'),{'op':'添加','user_id':SENDER})
+        self.assertIn('授权',result);self.assertEqual(self.admins,[TARGET])
+        result=await self.handler.run('special_admins',event(),{'op':'删除','user_id':TARGET})
+        self.assertIn('已移除',result);self.assertEqual(self.admins,[])
     async def test_unknown_identity_fail_closed(self):
         self.api.responses[('GET','/members/'+SENDER)]={'member_role':'admin'}
         result=await self.handler.run('kick',event(admin=False,role=None),{'target_id':TARGET})
@@ -136,10 +154,6 @@ class OfficialTests(unittest.IsolatedAsyncioTestCase):
     async def test_unknown_old_command_not_onebot(self):
         result=await self.handler.command('set_group_card',event(),{})
         self.assertIn('未提供',result);self.assertFalse(self.api.calls)
-    async def test_read_respects_original_permission(self):
-        self.perms['get_group_member_list']='群主'
-        result=await self.handler.run('members',event(admin=False,role='member'))
-        self.assertIn('群主',result);self.assertFalse(self.api.calls)
     async def test_read_reports_pagination(self):
         self.api.responses[('GET','/members')]={'members':[{'member_openid':TARGET,'username':'测试','member_role':'member'}],'next_cursor':'more'}
         result=await self.handler.run('members',event())
