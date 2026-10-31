@@ -108,18 +108,11 @@ class ConfigNode:
 # ============ 插件自定义配置 ==================
 
 
-class VoteBanConfig(ConfigNode):
-    ttl: int
-    threshold: int
-
-
 class PluginConfig(ConfigNode):
     default: dict
     admin_audit: bool
     random_ban_time: str
-    vote_ban: VoteBanConfig
     llm_get_msg_count: int
-    level_threshold: int
     perms: dict
 
     _db_version = 3
@@ -186,12 +179,7 @@ class PluginConfig(ConfigNode):
             **self.default,
             "admin_audit": self.admin_audit,
             "random_ban_time": self.random_ban_time,
-            "vote_ban": {
-                "ttl": self.vote_ban.ttl,
-                "threshold": self.vote_ban.threshold,
-            },
             "llm_get_msg_count": self.llm_get_msg_count,
-            "level_threshold": self.level_threshold,
             "perms": dict(self.perms),
         }
 

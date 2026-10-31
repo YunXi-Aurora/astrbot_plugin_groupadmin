@@ -353,26 +353,6 @@ class QQAdminPlugin(Star):
         """刷屏检测与禁言"""
         await self.banpro.spamming_ban(event)
 
-    @filter.command("投票禁言")
-    @perm_required(PermLevel.ADMIN, perm_key="vote")
-    async def start_vote_mute(
-        self, event: AiocqhttpMessageEvent, ban_time: int | None = None
-    ):
-        "投票禁言 <秒数> @群友"
-        await self.banpro.start_vote_mute(event, ban_time)
-
-    @filter.command("赞同禁言")
-    @perm_required(PermLevel.ADMIN, perm_key="vote")
-    async def agree_vote_mute(self, event: AiocqhttpMessageEvent):
-        """同意执行当前禁言投票"""
-        await self.banpro.vote_mute(event, agree=True)
-
-    @filter.command("反对禁言")
-    @perm_required(PermLevel.ADMIN, perm_key="vote")
-    async def disagree_vote_mute(self, event: AiocqhttpMessageEvent):
-        """反对执行当前禁言投票"""
-        await self.banpro.vote_mute(event, agree=False)
-
     @filter.command("开启宵禁")
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     @perm_required(PermLevel.ADMIN, perm_key="curfew")
@@ -421,14 +401,6 @@ class QQAdminPlugin(Star):
     ):
         "设置/查看是否拒绝无关键词的进群申请（无参数表示查看）"
         await self.join.handle_no_match_reject(event, mode)
-
-    @filter.command("进群等级")
-    @perm_required(PermLevel.ADMIN, perm_key="join")
-    async def handle_join_min_level(
-        self, event: AiocqhttpMessageEvent, level: int | None = None
-    ):
-        "设置/查看本群进群等级门槛，（0表示不限制，无参数表示查看）"
-        await self.join.handle_join_min_level(event, level)
 
     @filter.command("进群次数")
     @perm_required(PermLevel.ADMIN, perm_key="join")
@@ -497,17 +469,6 @@ class QQAdminPlugin(Star):
     async def get_group_member_list(self, event: AiocqhttpMessageEvent):
         "查看群友信息"
         await self.member.get_group_member_list(event)
-
-    @filter.command("清理群友")
-    @perm_required(PermLevel.MEMBER, perm_key="clear_group_member")
-    async def clear_group_member(
-        self,
-        event: AiocqhttpMessageEvent,
-        inactive_days: int = 30,
-        under_level: int = 10,
-    ):
-        "清理群友 <未发言天数> <群等级>"
-        await self.member.clear_group_member(event, inactive_days, under_level)
 
     @filter.command("上传群文件")
     @perm_required(PermLevel.MEMBER, perm_key="upload_group_file")

@@ -71,22 +71,6 @@ class JoinHandle:
             status = await self.db.get(gid, "join_no_match_reject")
             await event.send(event.plain_result(f"本群未命中白词驳回：{status}"))
 
-    async def handle_join_min_level(
-        self, event: AiocqhttpMessageEvent, level: int | None
-    ):
-        gid = event.get_group_id()
-        if isinstance(level, int):
-            await self.db.set(gid, "join_min_level", level)
-            msg = (
-                f"本群进群等级门槛已设为：{level} 级"
-                if level > 0
-                else "已解除本群的进群等级限制"
-            )
-            await event.send(event.plain_result(msg))
-        else:
-            level = await self.db.get(gid, "join_min_level")
-            await event.send(event.plain_result(f"本群进群等级门槛: {level} 级"))
-
     async def handle_join_max_time(
         self, event: AiocqhttpMessageEvent, time: int | None
     ):
@@ -192,7 +176,6 @@ class JoinHandle:
         gid: str,
         uid: str,
         comment: str | None = None,
-        user_level: int | None = None,
     ) -> tuple[bool | None, str]:
         """判断是否让该用户入群，返回原因"""
         # 1.黑名单用户
@@ -200,10 +183,8 @@ class JoinHandle:
         if uid in block_ids:
             return False, "黑名单用户"
 
-        # 2.QQ等级过低
-        min_level = await self.db.get(gid, "join_min_level")
-        if min_level > 0 and user_level is not None and user_level < min_level:
-            return False, f"QQ等级过低({user_level}<{min_level})"
+        # 2.命中进群黑词
+        # TODO(stage2): 进群等级门槛(join_min_level)已随等级体系移除
 
         if comment:
             # 提取答案部分
@@ -272,7 +253,7 @@ class JoinHandle:
                 level = info.get("qqLevel") or info.get("level")
 
             # 判断是否通过
-            approve, reason = await self.should_approve(gid, uid, comment, level)
+            approve, reason = await self.should_approve(gid, uid, comment)
             # 清理缓存
             if approve is True:
                 self._fail.pop(f"{gid}_{uid}", None)

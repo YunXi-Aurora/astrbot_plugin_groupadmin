@@ -43,7 +43,6 @@ class PermLevel(IntEnum):
             "超管": cls.SUPERUSER,
             "群主": cls.OWNER,
             "管理员": cls.ADMIN,
-            "高等级成员": cls.HIGH,
             "成员": cls.MEMBER,
             "未知": cls.UNKNOWN,
             "无权限": cls.UNKNOWN,
@@ -86,20 +85,14 @@ class PermissionManager:
         except Exception:
             return PermLevel.UNKNOWN
         role = info.get("role", "unknown")
-        level = int(info.get("level", 0))
-        group_config = (
-            self.db.get_group_snapshot(group_id)
-            if self.db is not None
-            else {"level_threshold": self.cfg.level_threshold if self.cfg else 50}
-        )
-        level_threshold = int(group_config.get("level_threshold", 50))
+        # TODO(stage2): 等级体系已移除，member 一律视为 MEMBER，高等级成员层级待阶段1重写
         match role:
             case "owner":
                 return PermLevel.OWNER
             case "admin":
                 return PermLevel.ADMIN
             case "member":
-                return PermLevel.HIGH if level >= level_threshold else PermLevel.MEMBER
+                return PermLevel.MEMBER
             case _:
                 return PermLevel.UNKNOWN
 

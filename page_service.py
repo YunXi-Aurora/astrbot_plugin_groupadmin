@@ -229,13 +229,8 @@ class QQAdminPageService:
             self.cfg.admin_audit = updated["admin_audit"]
         if "random_ban_time" in updated:
             self.cfg.random_ban_time = updated["random_ban_time"]
-        if "vote_ban" in updated:
-            self.cfg.vote_ban.ttl = updated["vote_ban"]["ttl"]
-            self.cfg.vote_ban.threshold = updated["vote_ban"]["threshold"]
         if "llm_get_msg_count" in updated:
             self.cfg.llm_get_msg_count = updated["llm_get_msg_count"]
-        if "level_threshold" in updated:
-            self.cfg.level_threshold = updated["level_threshold"]
         if "perms" in updated:
             self._merge_dict(self.cfg.perms, updated["perms"])
 
@@ -245,9 +240,7 @@ class QQAdminPageService:
         keys = [
             "admin_audit",
             "random_ban_time",
-            "vote_ban",
             "llm_get_msg_count",
-            "level_threshold",
             "perms",
         ]
         return {
