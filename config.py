@@ -116,7 +116,7 @@ class PluginConfig(ConfigNode):
     official_special_admins: bool
 
     _db_version = 3
-    _plugin_name: str = "astrbot_plugin_qqadmin"
+    _plugin_name: str = "astrbot_plugin_groupadmin"
 
     def __init__(self, cfg: AstrBotConfig, context: Context):
         super().__init__(cfg)
