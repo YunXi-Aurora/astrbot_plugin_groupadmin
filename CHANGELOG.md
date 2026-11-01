@@ -1,4 +1,11 @@
 # 更新日志
+## 1.0.4 · 2026-11-01
+### 删除项
+- 删除**宵禁**功能：指令「开启宵禁」「关闭宵禁」、LLM 工具 `llm_start_curfew` / `llm_stop_curfew`、`core/curfew_handle.py`、`curfew_data.json` 持久化及相关配置。
+- 删除**违禁词/刷屏禁言**功能：指令「禁词禁言」「设置禁词」「内置禁词」「刷屏禁言」、消息事件监听 `on_ban_words` / `spamming_ban`、`core/banpro_handel.py`、内置词库 `SensitiveLexicon.json` 及相关配置项（`builtin_ban` / `custom_ban_words` / `word_ban_time` / `spamming_ban_time`）。
+- 同步清理 `config.py` 的 `ban_lexicon_path` / `curfew_file` / `spamming_count` / `spamming_interval`、`data.py` 字段中文映射、`_conf_schema.json` 四个配置项、README / OFFICIAL.md 相关描述。
+### 结果
+- 群聊命令由 50 条降到 43 条，LLM 工具由 23 个降到 21 个。
 
 ## 1.0.0 · 2026-11-01
 

@@ -29,10 +29,6 @@ class QQAdminDB:
         "join_ban_time": "进群禁言时长",
         "leave_notify": "主动退群通知",
         "leave_block": "主动退群拉黑",
-        "builtin_ban": "启用内置禁词",
-        "custom_ban_words": "自定义违禁词",
-        "word_ban_time": "禁词禁言时长",
-        "spamming_ban_time": "刷屏禁言时长",
     }
 
     REVERSE_FIELD_MAP = {v: k for k, v in FIELD_MAP.items()}

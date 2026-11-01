@@ -92,43 +92,6 @@
         "hint": "当用户主动退群时，自动拉黑（即添加到进群黑名单）",
         "type": "bool",
         "default": false
-      },
-      "builtin_ban": {
-        "description": "启用内置禁词",
-        "hint": "插件内置了一个敏感词库, 如需自定义请自行修改：data/plugins/astrbot_plugin_groupadmin/SensitiveLexicon.json, 不建议开启，让群管理员通过命令“ 内置禁词 开/关 ”来为当前群聊设置",
-        "type": "bool",
-        "default": false
-      },
-      "custom_ban_words": {
-        "description": "群内自定义的违禁词",
-        "hint": "",
-        "type": "list",
-        "default": [
-          "禁词1",
-          "禁词2"
-        ]
-      },
-      "word_ban_time": {
-        "description": "触发禁词时的禁言时长",
-        "hint": "触发违禁词则禁言发送者，单位：秒，设置为 0 表示不禁言",
-        "type": "int",
-        "slider": {
-          "min": 0,
-          "max": 600,
-          "step": 60
-        },
-        "default": 360
-      },
-      "spamming_ban_time": {
-        "description": "刷屏禁言时长（秒）",
-        "hint": "当用户刷屏时触发禁言该用户，设置为 0 表示不启用此功能",
-        "type": "int",
-        "slider": {
-          "min": 0,
-          "max": 600,
-          "step": 60
-        },
-        "default": 0
       }
     }
   },

@@ -1,4 +1,3 @@
-import asyncio
 import re
 
 from astrbot.api import logger
@@ -8,12 +7,9 @@ from astrbot.core import AstrBotConfig
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
-from astrbot.core.star.filter.event_message_type import EventMessageType
 
 from .config import PluginConfig
 from .core import (
-    BanproHandle,
-    CurfewHandle,
     FileHandle,
     JoinHandle,
     MemberHandle,
@@ -47,28 +43,18 @@ class QQAdminPlugin(Star):
         self.normal = NormalHandle(self.cfg, self.db)
         self.recall = RecallHandle(self.cfg, self.db, perm_manager)
         self.notice = NoticeHandle(self, self.cfg)
-        self.banpro = BanproHandle(self.cfg, self.db)
         self.join = JoinHandle(self.cfg, self.db)
         self.member = MemberHandle(self)
         self.file = FileHandle(self.cfg)
-        self.curfew = CurfewHandle(self.context, self.cfg)
         self.web = QQAdminWebController(context, self.cfg, self.db, self.group_cache)
         self.web.register_routes()
 
     async def initialize(self):
         await self.db.init()
-        asyncio.create_task(self.curfew.initialize())
         perm_manager.lazy_init(self.cfg, self.db)
 
     async def terminate(self):
-        await self.curfew.stop_all_tasks()
         await self.db.close()
-
-    @filter.on_platform_loaded()
-    async def on_platform_loaded(self):
-        """平台加载完成时"""
-        if not self.curfew.curfew_managers:
-            asyncio.create_task(self.curfew.initialize())
 
     @filter.command("群管帮助", alias={"群管菜单"})
     async def official_help(self, event: AiocqhttpMessageEvent):
@@ -375,71 +361,6 @@ class QQAdminPlugin(Star):
         """查看群公告"""
         if result := await self.notice.get_group_notice(event):
             yield event.plain_result(result)
-
-    @filter.command("禁词禁言")
-    @require_admin()
-    async def handle_word_ban_time(
-        self, event: AiocqhttpMessageEvent, time: int | None = None
-    ):
-        """禁词禁言 <秒数>, 设为 0 表示关闭禁词检测"""
-        await self.banpro.handle_word_ban_time(event, time)
-
-    @filter.command("设置禁词", alias={"禁词", "违禁词"})
-    @require_admin()
-    async def handle_builtin_ban_words(self, event: AiocqhttpMessageEvent):
-        """禁词 +词1 -词2, 带+-则增删, 不带则覆写"""
-        await self.banpro.handle_ban_words(event)
-
-    @filter.command("内置禁词")
-    @require_admin()
-    async def handle_ban_words(
-        self, event: AiocqhttpMessageEvent, mode: str | bool | None = None
-    ):
-        """内置禁词 开/关"""
-        await self.banpro.handle_builtin_ban_words(event, mode)
-
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
-    @filter.event_message_type(EventMessageType.GROUP_MESSAGE)
-    async def on_ban_words(self, event: AiocqhttpMessageEvent):
-        """自动检测违禁词，撤回并禁言"""
-        if not event.is_admin():
-            await self.banpro.on_ban_words(event)
-
-    @filter.command("刷屏禁言")
-    @require_admin()
-    async def handle_spamming_ban_time(
-        self, event: AiocqhttpMessageEvent, time: int | None = None
-    ):
-        """刷屏禁言 <秒数>, 设为 0 表示关闭禁词检测"""
-        await self.banpro.handle_spamming_ban_time(event, time)
-
-    @filter.platform_adapter_type(filter.PlatformAdapterType.AIOCQHTTP)
-    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
-    async def spamming_ban(self, event: AiocqhttpMessageEvent):
-        """刷屏检测与禁言"""
-        await self.banpro.spamming_ban(event)
-
-    @filter.command("开启宵禁")
-    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
-    @require_admin()
-    async def start_curfew(
-        self,
-        event: AiocqhttpMessageEvent,
-        start_time: str | None = None,
-        end_time: str | None = None,
-    ):
-        """开启宵禁 HH:MM HH:MM"""
-        if result := await self.curfew.start_curfew(event, start_time, end_time):
-            yield event.plain_result(result)
-
-    @filter.command("关闭宵禁")
-    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
-    @require_admin()
-    async def stop_curfew(self, event: AiocqhttpMessageEvent):
-        """关闭本群的宵禁任务"""
-        if result := await self.curfew.stop_curfew(event):
-            yield event.plain_result(result)
-
     @filter.command("进群审核")
     @require_admin()
     async def handle_join_review(
@@ -858,52 +779,6 @@ class QQAdminPlugin(Star):
                 yield error
                 return
         if result := await self.notice.get_group_notice(event):
-            yield result
-
-    @filter.llm_tool()
-    @official_tool
-    async def llm_start_curfew(
-        self,
-        event: AiocqhttpMessageEvent,
-        start_time: str,
-        end_time: str,
-        need_auth: bool = True,
-    ):
-        """
-        设置当前群的宵禁时间范围。
-        Args:
-            start_time(string): 宵禁开始时间，格式为HH:MM。
-            end_time(string): 宵禁结束时间，格式为HH:MM。
-            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True。
-        """
-        if need_auth:
-            if error := await perm_manager.llm_perm_block(
-                event, bot_perm=PermLevel.BOT_ADMIN
-            ):
-                yield error
-                return
-        if result := await self.curfew.start_curfew(event, start_time, end_time):
-            yield result
-
-    @filter.llm_tool()
-    @official_tool
-    async def llm_stop_curfew(
-        self,
-        event: AiocqhttpMessageEvent,
-        need_auth: bool = True,
-    ):
-        """
-        关闭当前群的宵禁。
-        Args:
-            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True。
-        """
-        if need_auth:
-            if error := await perm_manager.llm_perm_block(
-                event, bot_perm=PermLevel.BOT_ADMIN
-            ):
-                yield error
-                return
-        if result := await self.curfew.stop_curfew(event):
             yield result
 
     @filter.llm_tool()

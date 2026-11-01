@@ -127,17 +127,11 @@ class PluginConfig(ConfigNode):
         self.plugin_dir = Path(get_astrbot_plugin_path()) / self._plugin_name
 
         self.db_path = self.data_dir / f"qqadmin_data_v{self._db_version}.db"
-        self.ban_lexicon_path = self.plugin_dir / "SensitiveLexicon.json"
         self.group_notice_dir = self.data_dir / "group_notice"
         self.group_notice_dir.mkdir(parents=True, exist_ok=True)
-        self.curfew_file = self.data_dir / "curfew_data.json"
-        if not self.curfew_file.exists():
-            self.curfew_file.write_text("{}", encoding="utf-8")
         self.file_dir = self.data_dir / "file"
         self.file_dir.mkdir(parents=True, exist_ok=True)
 
-        self.spamming_count = 5
-        self.spamming_interval = 0.5
         self.refresh_runtime_settings()
 
     @staticmethod
