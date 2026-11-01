@@ -233,6 +233,15 @@ class QQAdminPlugin(Star):
         if result := await self.normal.set_group_ban(event, ban_time):
             yield event.plain_result(result)
 
+    @filter.command("娱乐式禁言", alias={"玩笑禁言", "吓唬禁言"})
+    @require_admin()
+    async def fun_group_ban(self, event: AiocqhttpMessageEvent, ban_time=None):
+        """娱乐式禁言 @群友 时间，下发禁言后立刻解禁（提示文案与普通禁言一致）"""
+        if result := await self.normal.set_group_ban(
+            event, ban_time, instant_unban=True
+        ):
+            yield event.plain_result(result)
+
     @filter.command("解禁")
     @require_admin()
     async def cancel_group_ban(self, event: AiocqhttpMessageEvent):
