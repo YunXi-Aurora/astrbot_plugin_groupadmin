@@ -26,13 +26,12 @@ class NormalHandle:
                 group_config.get("random_ban_time"), 60
             )
         else:
-            # 命令参数可能是字符串（如 "禁言 -1 @某人"），规范化为 int
+            # 命令参数可能是字符串（如 "禁言 60 @某人"），规范化为 int
             try:
                 ban_time = int(str(ban_time).strip())
             except (TypeError, ValueError):
-                return f"禁言时长参数无效：{ban_time!r}（应为秒数或 -1 表示永久）"
-            if ban_time != -1:
-                ban_time = max(ban_time, 0)
+                return f"禁言时长参数无效：{ban_time!r}（应为非负秒数，0 表示解禁）"
+            ban_time = max(ban_time, 0)
         tids = [target_id] if target_id else get_ats(event)
         results = []
         for tid in tids:
@@ -42,7 +41,7 @@ class NormalHandle:
                     user_id=int(tid),
                     duration=ban_time,
                 )
-                time_desc = "永久" if ban_time == -1 else f"{ban_time}秒"
+                time_desc = f"{ban_time}秒"
                 results.append(f"用户[{tid}]已被禁言{time_desc}")
             except Exception as e:
                 logger.error(f"禁言失败 群{event.get_group_id()} 用户{tid}: {e!r}")
