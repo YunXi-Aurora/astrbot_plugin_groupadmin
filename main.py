@@ -575,7 +575,7 @@ class QQAdminPlugin(Star):
             user_id(string): OneBot用户QQ号或官方当前群的成员OpenID，不得使用私聊UID
             duration(number): 禁言持续时间（秒），支持30天内的任意时长（2592000秒），0表示取消禁言
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
-            instant_unban(boolean): 娱乐式禁言，默认False；为True时下发禁言后立刻解禁（用户会看到禁言提示但随即恢复发言），适用于玩笑场景，用户明确要求"吓唬一下/禁言玩玩"时使用
+            instant_unban(boolean): 娱乐式禁言，默认False；为True时下发禁言后立刻解禁（用户会看到禁言提示但随即恢复发言），适用于玩笑场景，用户明确要求"吓唬一下/禁言玩玩"或"禁言后立刻解禁"时使用
         """
         if need_auth:
             if error := await perm_manager.llm_perm_block(
