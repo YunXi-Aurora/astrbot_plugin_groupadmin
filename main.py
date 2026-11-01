@@ -569,10 +569,10 @@ class QQAdminPlugin(Star):
         need_auth: bool = True,
     ):
         """
-        在群聊中禁言某用户，被禁言的用户在禁言期间将无法发送消息。
+        在群聊中禁言某用户，被禁言的用户在禁言期间将无法发送消息。支持30天内的限时禁言和-1永久禁言。
         Args:
             user_id(string): OneBot用户QQ号或官方当前群的成员OpenID，不得使用私聊UID
-            duration(number): 禁言持续时间（秒），范围为0~86400, 0表示取消禁言
+            duration(number): 禁言持续时间（秒），支持30天内的任意时长（2592000秒），传-1表示永久禁言，0表示取消禁言
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
         """
         if need_auth:

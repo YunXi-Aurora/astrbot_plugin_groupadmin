@@ -33,7 +33,8 @@ class NormalHandle:
                     user_id=int(tid),
                     duration=ban_time,
                 )
-                results.append(f"用户[{tid}]已被禁言{ban_time}秒")
+                time_desc = "永久" if ban_time == -1 else f"{ban_time}秒"
+                results.append(f"用户[{tid}]已被禁言{time_desc}")
             except Exception:
                 results.append(f"用户[{tid}]禁言失败")
         event.stop_event()

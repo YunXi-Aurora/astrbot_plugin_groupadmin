@@ -146,11 +146,13 @@ class PluginConfig(ConfigNode):
         return [str(i) for i in ids if str(i).isdigit()]
 
     def get_ban_time(self, seconds=None) -> int:
-        """获取禁言时间"""
+        """获取禁言时间。-1 表示永久禁言，其余不限上限"""
         if seconds is None or not isinstance(seconds, int):
             return random.randint(self.min_ban_time, self.max_ban_time)
+        elif seconds == -1:
+            return -1
         else:
-            return min(max(seconds, 0), 2592000)
+            return max(seconds, 0)
 
     @staticmethod
     def _resolve_ban_time_range(random_ban_time: str) -> tuple[int, int]:
@@ -172,7 +174,9 @@ class PluginConfig(ConfigNode):
         min_ban_time, max_ban_time = self._resolve_ban_time_range(random_ban_time)
         if seconds is None or not isinstance(seconds, int):
             return random.randint(min_ban_time, max_ban_time)
-        return min(max(seconds, 0), 2592000)
+        if seconds == -1:
+            return -1
+        return max(seconds, 0)
 
     def build_group_default_config(self) -> dict[str, Any]:
         return {
