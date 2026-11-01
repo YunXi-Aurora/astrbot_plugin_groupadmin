@@ -567,13 +567,15 @@ class QQAdminPlugin(Star):
         user_id: str,
         duration: int,
         need_auth: bool = True,
+        instant_unban: bool = False,
     ):
         """
-        在群聊中禁言某用户，被禁言的用户在禁言期间将无法发送消息。
+        在群聊中禁言某用户，被禁言的用户在禁言期间将无法发送消息。instant_unban为True时为娱乐式禁言：下发禁言后立刻解禁，只吓唬一下不禁真。
         Args:
             user_id(string): OneBot用户QQ号或官方当前群的成员OpenID，不得使用私聊UID
             duration(number): 禁言持续时间（秒），支持30天内的任意时长（2592000秒），0表示取消禁言
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
+            instant_unban(boolean): 娱乐式禁言，默认False；为True时下发禁言后立刻解禁（用户会看到禁言提示但随即恢复发言），适用于玩笑场景，用户明确要求"吓唬一下/禁言玩玩"时使用
         """
         if need_auth:
             if error := await perm_manager.llm_perm_block(
@@ -583,7 +585,7 @@ class QQAdminPlugin(Star):
                 yield error
                 return
         if result := await self.normal.set_group_ban(
-            event, ban_time=duration, target_id=user_id
+            event, ban_time=duration, target_id=user_id, instant_unban=instant_unban
         ):
             yield result
 

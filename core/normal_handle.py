@@ -1,4 +1,5 @@
 from astrbot.api import logger
+import asyncio
 from astrbot.core.message.components import Reply
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
@@ -25,6 +26,7 @@ class NormalHandle:
         event: AiocqhttpMessageEvent,
         ban_time: int | None = None,
         target_id: str | int = "",
+        instant_unban: bool = False,
     ):
         group_config = self.db.get_group_snapshot(event.get_group_id())
         if ban_time is None:
@@ -50,7 +52,27 @@ class NormalHandle:
                     duration=ban_time,
                 )
                 time_desc = format_duration(ban_time) if ban_time else "0秒"
-                results.append(f"用户[{tid}]已被禁言{time_desc}")
+                msg = f"用户[{tid}]已被禁言{time_desc}"
+                if instant_unban and ban_time > 0:
+                    # 娱乐式禁言：下发后立刻解禁
+                    try:
+                        await asyncio.sleep(1)
+                        await event.bot.set_group_ban(
+                            group_id=int(event.get_group_id()),
+                            user_id=int(tid),
+                            duration=0,
+                        )
+                        msg = (
+                            f"用户[{tid}]已被娱乐式禁言{time_desc}"
+                            f"（已立刻解禁，纯吓唬）"
+                        )
+                    except Exception as e:
+                        logger.error(
+                            f"娱乐式禁言解禁失败 群{event.get_group_id()} "
+                            f"用户{tid}: {e!r}"
+                        )
+                        msg = f"用户[{tid}]已被禁言{time_desc}（解禁失败，联系管理员手动解禁）"
+                results.append(msg)
             except Exception as e:
                 logger.error(f"禁言失败 群{event.get_group_id()} 用户{tid}: {e!r}")
                 results.append(f"用户[{tid}]禁言失败")
