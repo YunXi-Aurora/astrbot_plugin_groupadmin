@@ -1027,13 +1027,15 @@ class QQAdminPlugin(Star):
         event: AiocqhttpMessageEvent,
         count: int = 10,
         user_id: str = "",
+        keyword: str = "",
         need_auth: bool = True,
     ):
         """
-        获取当前群最近的聊天消息列表，包含每条消息的ID、发送者、时间和内容摘要。当需要撤回消息但不知道消息ID时（如用户要求"撤回刚才那几张图""把他说的话都撤了"），先用此工具查到消息ID，再用 llm_delete_msg_batch 的 message_ids 参数撤回。
+        获取当前群最近的聊天消息列表，包含每条消息的ID、发送者和内容摘要，一次可查询多条。支持按内容关键词模糊匹配（部分字符即可命中，大小写不敏感）。当需要撤回消息但不知道消息ID时（如用户要求"撤回刚才那几张图""把他说的话都撤了""撤回有xxx字样的消息"），先用此工具查到消息ID，再用 llm_delete_msg_batch 的 message_ids 参数撤回。
         Args:
-            count(number): 获取最近多少条消息，默认10
+            count(number): 最多返回多少条消息，默认10；查询多条时按需调大
             user_id(string): 可选，只看某用户的消息（QQ号）；留空看所有人
+            keyword(string): 可选，内容关键词，模糊匹配消息文本的部分字符，如"测试"；命中多条时全部返回
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
         """
         if event.platform_meta.name != "aiocqhttp":
@@ -1050,7 +1052,7 @@ class QQAdminPlugin(Star):
         count = min(max(int(count), 1), 100)
         try:
             messages = await self.recall.get_recent_messages(
-                event, count, user_id=str(user_id).strip()
+                event, count, user_id=str(user_id).strip(), keyword=keyword.strip()
             )
         except Exception as e:
             logger.error(f"获取最近消息失败 群{event.get_group_id()}: {e!r}")

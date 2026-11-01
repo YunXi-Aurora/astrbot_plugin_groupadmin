@@ -79,9 +79,11 @@ class RecallHandle:
         event: AiocqhttpMessageEvent,
         count: int,
         user_id: str = "",
+        keyword: str = "",
     ) -> list[dict]:
-        """获取最近的群消息（时间正序），可按发送者过滤。返回原始 message dict 列表。"""
-        fetch = max(count * 5, 50)
+        """获取最近的群消息（时间正序），可按发送者/内容关键词过滤。返回原始 message dict 列表。"""
+        # 关键词模式下需要拉更大的窗口保证能匹配到
+        fetch = max(count * 10, 100) if keyword else max(count * 5, 50)
         payloads = {
             "group_id": int(event.get_group_id()),
             "message_seq": 0,
@@ -96,6 +98,17 @@ class RecallHandle:
             messages = [
                 m for m in messages if str(m["sender"]["user_id"]) == str(user_id)
             ]
+        if keyword:
+            kw = keyword.lower()
+
+            def msg_text(m: dict) -> str:
+                parts = []
+                for seg in m.get("message", []):
+                    if seg.get("type") == "text":
+                        parts.append(seg.get("data", {}).get("text", ""))
+                return "".join(parts).lower()
+
+            messages = [m for m in messages if kw in msg_text(m)]
         return messages[-count:] if count > 0 else []
 
     async def recall_user_messages(
