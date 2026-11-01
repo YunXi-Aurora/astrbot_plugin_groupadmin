@@ -118,3 +118,92 @@ def parse_bool(mode: str | bool | None, default: bool = False):
             return False
         case _:
             return default
+
+
+# 时间单位 -> 秒（按长度降序匹配，避免"分钟"被"分"截断）
+_TIME_UNITS: tuple[tuple[str, int], ...] = (
+    ("周", 604800),
+    ("星期", 604800),
+    ("week", 604800),
+    ("w", 604800),
+    ("天", 86400),
+    ("日", 86400),
+    ("day", 86400),
+    ("d", 86400),
+    ("小时", 3600),
+    ("時", 3600),
+    ("hour", 3600),
+    ("h", 3600),
+    ("分钟", 60),
+    ("分鐘", 60),
+    ("min", 60),
+    ("minute", 60),
+    ("分", 60),
+    ("秒", 1),
+    ("sec", 1),
+    ("second", 1),
+    ("s", 1),
+)
+
+
+def parse_duration(text: str | int | float | None) -> int | None:
+    """
+    解析时长字符串为秒数，支持单位换算：
+    纯数字按秒；"1分钟"/"1min"/"60s"/"60秒"/"1h30m"/"1时30分" 均换算为秒。
+    无法解析返回 None。
+    """
+    if text is None:
+        return None
+    if isinstance(text, (int, float)):
+        return int(text)
+    s = str(text).strip().lower().replace(" ", "")
+    if not s:
+        return None
+    # 纯数字直接按秒
+    if s.isdigit():
+        return int(s)
+    total = 0
+    i = 0
+    matched_any = False
+    while i < len(s):
+        # 取数字部分
+        num_start = i
+        while i < len(s) and (s[i].isdigit() or s[i] == "."):
+            i += 1
+        if num_start == i:
+            return None  # 期望数字但遇到其它字符
+        num_str = s[num_start:i]
+        try:
+            num = float(num_str)
+        except ValueError:
+            return None
+        # 取单位部分
+        unit_matched = False
+        for unit, secs in _TIME_UNITS:
+            if s.startswith(unit, i):
+                total += num * secs
+                i += len(unit)
+                unit_matched = True
+                matched_any = True
+                break
+        if not unit_matched:
+            # 无单位则默认秒（仅当已是末尾，如 "60"）
+            if i == len(s):
+                total += num
+                matched_any = True
+                break
+            return None
+    return int(total) if matched_any else None
+
+
+def format_duration(seconds: int) -> str:
+    """把秒数格式化为人类可读时长，如 3660 -> 1小时1分钟"""
+    if seconds <= 0:
+        return f"{seconds}秒"
+    parts: list[str] = []
+    units = (("周", 604800), ("天", 86400), ("小时", 3600), ("分钟", 60), ("秒", 1))
+    for name, secs in units:
+        n, seconds = divmod(seconds, secs)
+        if n:
+            parts.append(f"{int(n)}{name}")
+    return "".join(parts)

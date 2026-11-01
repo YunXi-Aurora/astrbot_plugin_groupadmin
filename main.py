@@ -229,7 +229,7 @@ class QQAdminPlugin(Star):
     @filter.command("禁言")
     @require_admin()
     async def set_group_ban(self, event: AiocqhttpMessageEvent, ban_time=None):
-        """禁言 <秒数> @群友"""
+        """禁言 @群友 时间，如：禁言 @某人 1分钟 / 禁言 @某人 60s / 禁言 @某人 90"""
         if result := await self.normal.set_group_ban(event, ban_time):
             yield event.plain_result(result)
 

@@ -6,7 +6,13 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 
 from ..config import PluginConfig
 from ..data import QQAdminDB
-from ..utils import extract_image_url, get_ats, get_nickname
+from ..utils import (
+    extract_image_url,
+    format_duration,
+    get_ats,
+    get_nickname,
+    parse_duration,
+)
 
 
 class NormalHandle:
@@ -26,12 +32,14 @@ class NormalHandle:
                 group_config.get("random_ban_time"), 60
             )
         else:
-            # 命令参数可能是字符串（如 "禁言 60 @某人"），规范化为 int
-            try:
-                ban_time = int(str(ban_time).strip())
-            except (TypeError, ValueError):
-                return f"禁言时长参数无效：{ban_time!r}（应为非负秒数，0 表示解禁）"
-            ban_time = max(ban_time, 0)
+            # 时间参数支持单位换算："1分钟"/"1min"/"60s"/"60秒" 均等价
+            parsed = parse_duration(ban_time)
+            if parsed is None:
+                return (
+                    f"禁言时长参数无效：{ban_time!r}"
+                    "（支持如 60、60秒、60s、1分钟、1min、1小时、1h、1天 等写法）"
+                )
+            ban_time = max(parsed, 0)
         tids = [target_id] if target_id else get_ats(event)
         results = []
         for tid in tids:
@@ -41,7 +49,7 @@ class NormalHandle:
                     user_id=int(tid),
                     duration=ban_time,
                 )
-                time_desc = f"{ban_time}秒"
+                time_desc = format_duration(ban_time) if ban_time else "0秒"
                 results.append(f"用户[{tid}]已被禁言{time_desc}")
             except Exception as e:
                 logger.error(f"禁言失败 群{event.get_group_id()} 用户{tid}: {e!r}")
