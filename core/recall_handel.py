@@ -7,13 +7,22 @@ from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
 
 from ..config import PluginConfig
 from ..data import QQAdminDB
-from ..utils import get_ats
+from ..utils import get_ats, get_nickname
 
 
 class RecallHandle:
     def __init__(self, config: PluginConfig, db: QQAdminDB):
         self.cfg = config
         self.db = db
+
+    async def _send_recall_notice(self, event: AiocqhttpMessageEvent):
+        """撤回后向群聊通报发起者"""
+        sender_id = event.get_sender_id()
+        nickname = await get_nickname(event, sender_id)
+        await event.send(
+            event.plain_result(f"本次撤回由[{nickname}][{sender_id}]发起")
+        )
+
     async def delete_msg(self, event: AiocqhttpMessageEvent):
         """(引用消息)撤回 | 撤回 @某人(默认bot) 数量(默认10)"""
         client = event.bot
@@ -22,6 +31,7 @@ class RecallHandle:
         if isinstance(first_seg, Reply):
             try:
                 await client.delete_msg(message_id=int(first_seg.id))
+                await self._send_recall_notice(event)
             except Exception:
                 await event.send(event.plain_result("我无权撤回这条消息"))
             finally:
@@ -66,3 +76,5 @@ class RecallHandle:
             await event.send(
                 event.plain_result(f"已从{count}条消息中撤回{delete_count}条")
             )
+            if delete_count > 0:
+                await self._send_recall_notice(event)
