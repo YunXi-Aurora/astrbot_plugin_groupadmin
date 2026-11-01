@@ -1022,18 +1022,85 @@ class QQAdminPlugin(Star):
             yield "撤回失败：我无权撤回这条消息或消息ID无效"
 
     @filter.llm_tool()
+    async def llm_get_recent_messages(
+        self,
+        event: AiocqhttpMessageEvent,
+        count: int = 10,
+        user_id: str = "",
+        need_auth: bool = True,
+    ):
+        """
+        获取当前群最近的聊天消息列表，包含每条消息的ID、发送者、时间和内容摘要。当需要撤回消息但不知道消息ID时（如用户要求"撤回刚才那几张图""把他说的话都撤了"），先用此工具查到消息ID，再用 llm_delete_msg_batch 的 message_ids 参数撤回。
+        Args:
+            count(number): 获取最近多少条消息，默认10
+            user_id(string): 可选，只看某用户的消息（QQ号）；留空看所有人
+            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
+        """
+        if event.platform_meta.name != "aiocqhttp":
+            yield "该工具需要 NapCat / OneBot 平台。"
+            return
+        if event.is_private_chat():
+            return
+        if need_auth:
+            if error := await perm_manager.llm_perm_block(
+                event, bot_perm=PermLevel.BOT_ADMIN
+            ):
+                yield error
+                return
+        count = min(max(int(count), 1), 100)
+        try:
+            messages = await self.recall.get_recent_messages(
+                event, count, user_id=str(user_id).strip()
+            )
+        except Exception as e:
+            logger.error(f"获取最近消息失败 群{event.get_group_id()}: {e!r}")
+            yield f"获取消息失败：{e}"
+            return
+        if not messages:
+            yield "未获取到消息"
+            return
+        current_mid = getattr(event.message_obj, "message_id", None)
+        lines = []
+        for m in messages:
+            mid = m["message_id"]
+            sender = m.get("sender", {})
+            uid = sender.get("user_id", "?")
+            nick = sender.get("card") or sender.get("nickname") or str(uid)
+            time_str = m.get("time", "?")
+            # 拼接消息内容摘要（文本/图片/At等类型标记）
+            parts = []
+            for seg in m.get("message", []):
+                seg_type = seg.get("type", "")
+                if seg_type == "text":
+                    parts.append(seg.get("data", {}).get("text", "").strip())
+                elif seg_type == "image":
+                    parts.append("[图片]")
+                elif seg_type == "at":
+                    parts.append(f"@{seg.get('data', {}).get('qq', '?')}")
+                elif seg_type == "reply":
+                    parts.append("[引用]")
+                else:
+                    parts.append(f"[{seg_type}]")
+            content = "".join(p for p in parts if p)[:60]
+            mark = "（本次请求）" if mid == current_mid else ""
+            lines.append(f"ID:{mid} | {nick}[{uid}] | {content}{mark}")
+        yield "\n".join(lines)
+
+    @filter.llm_tool()
     async def llm_delete_msg_batch(
         self,
         event: AiocqhttpMessageEvent,
+        message_ids: str = "",
         user_id: str = "",
         count: int = 1,
         need_auth: bool = True,
     ):
         """
-        批量撤回某用户最近发送的若干条消息（自动排除本次请求消息本身）。用户说"撤回我刚才发的3条消息""撤回他最近10条"时使用此工具。
+        批量撤回消息，两种模式：1) 传 message_ids（逗号分隔的消息ID列表）撤回任意指定的多条不连续消息，如"123,456,789"，先用 llm_get_recent_messages 查询ID；2) 传 user_id + count 撤回某用户最近 count 条连续消息。二选一，优先 message_ids。
         Args:
-            user_id(string): 要撤回消息的用户QQ号；留空默认为当前发消息的用户自己
-            count(number): 要撤回的消息条数，默认1
+            message_ids(string): 可选，要撤回的消息ID列表，英文逗号分隔，如"123,456,789"；用于撤回多条不连续的指定消息
+            user_id(string): 可选，要撤回消息的用户QQ号；配合count使用，撤回该用户最近count条消息；留空默认为当前发消息的用户自己
+            count(number): 要撤回的消息条数，默认1；仅在未传message_ids时生效
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
         """
         if event.platform_meta.name != "aiocqhttp":
@@ -1047,6 +1114,36 @@ class QQAdminPlugin(Star):
             ):
                 yield error
                 return
+        # 模式1：按 ID 列表撤回（不连续多条）
+        ids_str = str(message_ids).strip()
+        if ids_str:
+            try:
+                mids = [int(x) for x in ids_str.split(",") if x.strip()]
+            except ValueError:
+                yield "参数错误：message_ids 必须是英文逗号分隔的数字列表，如 \"123,456\"。"
+                return
+            if not mids:
+                yield "message_ids 为空且未指定用户，无法撤回。"
+                return
+            # 排除当前请求消息本身
+            current_mid = getattr(event.message_obj, "message_id", None)
+            mids = [m for m in mids if m != current_mid]
+            if not mids:
+                yield "没有可撤回的消息（已排除本次请求消息本身）。"
+                return
+            try:
+                delete_count = await self.recall.delete_msgs_by_ids(event, mids)
+            except Exception as e:
+                logger.error(f"批量撤回失败 群{event.get_group_id()}: {e!r}")
+                yield f"批量撤回失败：{e}"
+                return
+            if delete_count > 0:
+                yield f"已撤回 {delete_count} 条消息"
+            else:
+                reason = await self.recall._recall_fail_reason(event, None)
+                yield reason
+            return
+        # 模式2：按用户+条数撤回（最近连续N条）
         target = str(user_id).strip() or event.get_sender_id()
         count = max(int(count), 1)
         try:

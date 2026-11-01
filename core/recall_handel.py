@@ -54,6 +54,50 @@ class RecallHandle:
                 return "你无权让我这么做"
         return "撤回失败：未知原因"
 
+    async def delete_msgs_by_ids(
+        self, event: AiocqhttpMessageEvent, message_ids: list[int]
+    ) -> int:
+        """按 ID 列表撤回消息，返回实际撤回条数"""
+        client = event.bot
+        delete_count = 0
+        sem = asyncio.Semaphore(10)
+
+        async def try_delete(mid: int):
+            nonlocal delete_count
+            async with sem:
+                try:
+                    await client.delete_msg(message_id=mid)
+                    delete_count += 1
+                except Exception:
+                    pass
+
+        await asyncio.gather(*(try_delete(mid) for mid in message_ids))
+        return delete_count
+
+    async def get_recent_messages(
+        self,
+        event: AiocqhttpMessageEvent,
+        count: int,
+        user_id: str = "",
+    ) -> list[dict]:
+        """获取最近的群消息（时间正序），可按发送者过滤。返回原始 message dict 列表。"""
+        fetch = max(count * 5, 50)
+        payloads = {
+            "group_id": int(event.get_group_id()),
+            "message_seq": 0,
+            "count": fetch,
+            "reverseOrder": True,
+        }
+        result: dict = await event.bot.api.call_action(
+            "get_group_msg_history", **payloads
+        )
+        messages = list(reversed(result.get("messages", [])))
+        if user_id:
+            messages = [
+                m for m in messages if str(m["sender"]["user_id"]) == str(user_id)
+            ]
+        return messages[-count:] if count > 0 else []
+
     async def recall_user_messages(
         self,
         event: AiocqhttpMessageEvent,
