@@ -967,13 +967,13 @@ class QQAdminPlugin(Star):
     async def llm_delete_msg(
         self,
         event: AiocqhttpMessageEvent,
-        message_id: str | int,
+        message_id: str | int = "",
         need_auth: bool = True,
     ):
         """
-        撤回群聊中指定的一条消息。
+        撤回群聊中指定的一条消息。用户引用消息要求撤回时无需提供message_id。
         Args:
-            message_id(string): 要撤回的消息ID（OneBot message_id，数字）
+            message_id(string): 可选，要撤回的消息ID（OneBot message_id，数字）；用户引用消息发起撤回时留空
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
         """
         if event.platform_meta.name != "aiocqhttp":
@@ -981,6 +981,17 @@ class QQAdminPlugin(Star):
             return
         if event.is_private_chat():
             return
+        # 未显式给出 message_id 时，从引用消息中提取
+        if message_id in ("", None):
+            from astrbot.core.message.components import Reply
+
+            reply_seg = next(
+                (seg for seg in event.get_messages() if isinstance(seg, Reply)), None
+            )
+            if reply_seg is None:
+                yield "请提供要撤回的消息ID，或直接引用那条消息再让我撤回。"
+                return
+            message_id = reply_seg.id
         try:
             mid = int(message_id)
         except (TypeError, ValueError):
