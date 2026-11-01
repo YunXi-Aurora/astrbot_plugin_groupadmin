@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 430" width="100%" role="img" aria-labelledby="recallTitle recallDesc">
+  <title id="recallTitle">LLM 撤回工作流：授权 → 查询 → 执行</title>
+  <desc id="recallDesc">第一步 llm_perm_block 校验发起者与目标等级；第二步 llm_get_recent_messages 拉取带消息 ID 的清单，可按 user_id 只取某人、按 keyword 子串模糊匹配；第三步 llm_delete_msg 撤单条、llm_delete_msg_batch 撤多条，批量工具支持 message_ids 指定不连续消息，或 user_id 加 count 撤回某人最近 N 条，并自动排除请求消息本身。</desc>
+
+  <defs>
+    <linearGradient id="rbg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0A0E17"/>
+      <stop offset="1" stop-color="#121C2E"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="430" rx="22" fill="url(#rbg)"/>
+  <rect x="0" y="0" width="6" height="430" fill="#12B7F5"/>
+
+  <text x="56" y="58" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="28" font-weight="700" fill="#F2F6FC">撤回不连续消息：授权 → 查询 → 执行</text>
+  <text x="56" y="90" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="18" fill="#71809A">LLM 先拿到消息 ID，才可能撤回没被引用过的消息</text>
+
+  <!-- ROW 1 -->
+  <rect x="56" y="112" width="1088" height="72" rx="12" fill="#141D2E" stroke="#1F2C42" stroke-width="1"/>
+  <circle cx="92" cy="148" r="17" fill="#0F2A3A"/>
+  <text x="86" y="154" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#12B7F5">01</text>
+  <text x="126" y="141" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#E4ECF6">授权</text>
+  <text x="126" y="167" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" fill="#7E8FA6">超管 / 名单成员 / 群管</text>
+  <text x="352" y="141" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#12B7F5">llm_perm_block</text>
+  <text x="352" y="167" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" fill="#7E8FA6">need_auth 无法绕过官方校验，同时检查目标等级</text>
+
+  <!-- ROW 2 -->
+  <rect x="56" y="196" width="1088" height="72" rx="12" fill="#141D2E" stroke="#1F2C42" stroke-width="1"/>
+  <circle cx="92" cy="232" r="17" fill="#0F2A3A"/>
+  <text x="86" y="238" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#12B7F5">02</text>
+  <text x="126" y="225" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#E4ECF6">查询</text>
+  <text x="126" y="251" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" fill="#7E8FA6">返回带 ID 清单</text>
+  <text x="352" y="225" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="20" fill="#12B7F5">llm_get_recent_messages</text>
+  <text x="352" y="251" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" fill="#7E8FA6">user_id 只取某人 · keyword 子串模糊 · count 1~100</text>
+
+  <!-- ROW 3 -->
+  <rect x="56" y="280" width="1088" height="72" rx="12" fill="#101B2C" stroke="#1E3B52" stroke-width="1.5"/>
+  <circle cx="92" cy="316" r="17" fill="#12301F"/>
+  <text x="86" y="322" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" fill="#3ECF8E">03</text>
+  <text x="126" y="309" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" font-weight="700" fill="#E4ECF6">执行</text>
+  <text x="126" y="335" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" fill="#7E8FA6">单条 / 批量</text>
+  <text x="352" y="309" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="19" fill="#3ECF8E">llm_delete_msg_batch</text>
+  <text x="352" y="335" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="18" fill="#7E8FA6">message_ids 多条不连续 · 或 user_id + count 最近 N 条</text>
+
+  <text x="56" y="388" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#54637A">三个工具互相指引 · 批量撤回自动排除请求消息本身</text>
+  <text x="56" y="414" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#3F4E66">「撤回我最近发的3条」 · 「撤回有广告字样的消息」 · 「撤回 12345、12349」</text>
+</svg>
