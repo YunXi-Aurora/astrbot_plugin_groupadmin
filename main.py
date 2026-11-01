@@ -964,6 +964,41 @@ class QQAdminPlugin(Star):
             yield result
 
     @filter.llm_tool()
+    async def llm_delete_msg(
+        self,
+        event: AiocqhttpMessageEvent,
+        message_id: str | int,
+        need_auth: bool = True,
+    ):
+        """
+        撤回群聊中指定的一条消息。
+        Args:
+            message_id(string): 要撤回的消息ID（OneBot message_id，数字）
+            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
+        """
+        if event.platform_meta.name != "aiocqhttp":
+            yield "该工具需要 NapCat / OneBot 平台；QQ 官方机器人不提供撤回接口。"
+            return
+        if event.is_private_chat():
+            return
+        try:
+            mid = int(message_id)
+        except (TypeError, ValueError):
+            yield "参数错误：消息ID必须是数字（OneBot message_id）。"
+            return
+        if need_auth:
+            if error := await perm_manager.llm_perm_block(
+                event, bot_perm=PermLevel.BOT_ADMIN
+            ):
+                yield error
+                return
+        try:
+            await event.bot.delete_msg(message_id=mid)
+            yield f"已撤回消息 {message_id}"
+        except Exception:
+            yield "撤回失败：我无权撤回这条消息或消息ID无效"
+
+    @filter.llm_tool()
     async def llm_get_special_admins(self, event: AiocqhttpMessageEvent):
         """查看当前群的特殊权限名单，名单内成员可执行所有群管指令。
         Args:
