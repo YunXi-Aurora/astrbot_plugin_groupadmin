@@ -1,6 +1,7 @@
 import asyncio
 import re
 
+from astrbot.api import logger
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 from astrbot.core import AstrBotConfig
@@ -1019,6 +1020,48 @@ class QQAdminPlugin(Star):
             yield f"已撤回消息 {message_id}"
         except Exception:
             yield "撤回失败：我无权撤回这条消息或消息ID无效"
+
+    @filter.llm_tool()
+    async def llm_delete_msg_batch(
+        self,
+        event: AiocqhttpMessageEvent,
+        user_id: str = "",
+        count: int = 1,
+        need_auth: bool = True,
+    ):
+        """
+        批量撤回某用户最近发送的若干条消息（自动排除本次请求消息本身）。用户说"撤回我刚才发的3条消息""撤回他最近10条"时使用此工具。
+        Args:
+            user_id(string): 要撤回消息的用户QQ号；留空默认为当前发消息的用户自己
+            count(number): 要撤回的消息条数，默认1
+            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
+        """
+        if event.platform_meta.name != "aiocqhttp":
+            yield "该工具需要 NapCat / OneBot 平台；QQ 官方机器人不提供撤回接口。"
+            return
+        if event.is_private_chat():
+            return
+        if need_auth:
+            if error := await perm_manager.llm_perm_block(
+                event, bot_perm=PermLevel.BOT_ADMIN
+            ):
+                yield error
+                return
+        target = str(user_id).strip() or event.get_sender_id()
+        count = max(int(count), 1)
+        try:
+            delete_count = await self.recall.recall_user_messages(
+                event, {target}, count
+            )
+        except Exception as e:
+            logger.error(f"批量撤回失败 群{event.get_group_id()}: {e!r}")
+            yield f"批量撤回失败：{e}"
+            return
+        if delete_count > 0:
+            yield f"已撤回 {delete_count} 条消息"
+        else:
+            reason = await self.recall._recall_fail_reason(event, target)
+            yield reason
 
     @filter.llm_tool()
     async def llm_get_special_admins(self, event: AiocqhttpMessageEvent):

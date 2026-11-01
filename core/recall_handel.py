@@ -54,6 +54,53 @@ class RecallHandle:
                 return "你无权让我这么做"
         return "撤回失败：未知原因"
 
+    async def recall_user_messages(
+        self,
+        event: AiocqhttpMessageEvent,
+        target_ids: set[str],
+        count: int,
+    ) -> int:
+        """撤回指定用户们最近的 count 条消息，返回实际撤回条数。
+        拉取足够大的历史窗口以保证覆盖目标消息；自动跳过当前请求消息本身。"""
+        client = event.bot
+        # 取较大的窗口，避免目标用户的消息被其他人的消息稀释
+        fetch = max(count * 5, 50)
+        payloads = {
+            "group_id": int(event.get_group_id()),
+            "message_seq": 0,
+            "count": fetch,
+            "reverseOrder": True,
+        }
+        result: dict = await client.api.call_action(
+            "get_group_msg_history", **payloads
+        )
+        # reverseOrder=True 返回最新在前，反转为时间正序
+        messages = list(reversed(result.get("messages", [])))
+        # 排除当前请求消息本身
+        current_mid = getattr(event.message_obj, "message_id", None)
+        target_msgs = [
+            m
+            for m in messages
+            if str(m["sender"]["user_id"]) in target_ids
+            and m["message_id"] != current_mid
+        ]
+        # 只撤最近 count 条
+        to_delete = target_msgs[-count:] if count > 0 else []
+        delete_count = 0
+        sem = asyncio.Semaphore(10)
+
+        async def try_delete(message: dict):
+            nonlocal delete_count
+            async with sem:
+                try:
+                    await client.delete_msg(message_id=message["message_id"])
+                    delete_count += 1
+                except Exception:
+                    pass
+
+        await asyncio.gather(*(try_delete(m) for m in to_delete))
+        return delete_count
+
     async def delete_msg(self, event: AiocqhttpMessageEvent):
         """(引用消息)撤回 | 撤回 @某人(默认bot) 数量(默认10)"""
         client = event.bot
@@ -77,42 +124,14 @@ class RecallHandle:
             end_arg = event.message_str.split()[-1]
             count = int(end_arg) if end_arg.isdigit() else 10
 
-            payloads = {
-                "group_id": int(event.get_group_id()),
-                "message_seq": 0,
-                "count": count,
-                "reverseOrder": True,
-            }
-            result: dict = await client.api.call_action(
-                "get_group_msg_history", **payloads
-            )
-
-            messages = list(reversed(result.get("messages", [])))
-            delete_count = 0
-            sem = asyncio.Semaphore(10)
-
-            # 撤回消息
-            async def try_delete(message: dict):
-                nonlocal delete_count
-                if str(message["sender"]["user_id"]) not in target_ids:
-                    return
-                async with sem:
-                    try:
-                        await client.delete_msg(message_id=message["message_id"])
-                        delete_count += 1
-                    except Exception:
-                        pass
-
-            # 并发撤回
-            tasks = [try_delete(msg) for msg in messages]
-            await asyncio.gather(*tasks)
+            delete_count = await self.recall_user_messages(event, target_ids, count)
 
             await event.send(
-                event.plain_result(f"已从{count}条消息中撤回{delete_count}条")
+                event.plain_result(f"已撤回{delete_count}条消息")
             )
             if delete_count > 0:
                 await self._send_recall_notice(event)
-            elif target_ids:
+            else:
                 # 一条都没撤成，给出失败原因（以第一个目标为参照）
                 fail_msg = await self._recall_fail_reason(event, next(iter(target_ids)))
                 await event.send(event.plain_result(fail_msg))
