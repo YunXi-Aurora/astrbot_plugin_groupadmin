@@ -44,7 +44,7 @@ class QQAdminPlugin(Star):
         self.db.default_cfg = self.cfg.build_group_default_config()
         self.group_cache = QQGroupInfoCache(context, self.db)
         self.normal = NormalHandle(self.cfg, self.db)
-        self.recall = RecallHandle(self.cfg, self.db)
+        self.recall = RecallHandle(self.cfg, self.db, perm_manager)
         self.notice = NoticeHandle(self, self.cfg)
         self.banpro = BanproHandle(self.cfg, self.db)
         self.join = JoinHandle(self.cfg, self.db)
