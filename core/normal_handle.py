@@ -54,17 +54,13 @@ class NormalHandle:
                 time_desc = format_duration(ban_time) if ban_time else "0秒"
                 msg = f"用户[{tid}]已被禁言{time_desc}"
                 if instant_unban and ban_time > 0:
-                    # 娱乐式禁言：下发后立刻解禁
+                    # 娱乐式禁言：下发后立刻解禁，但提示文案与普通禁言完全一致（不剧透）
                     try:
                         await asyncio.sleep(1)
                         await event.bot.set_group_ban(
                             group_id=int(event.get_group_id()),
                             user_id=int(tid),
                             duration=0,
-                        )
-                        msg = (
-                            f"用户[{tid}]已被娱乐式禁言{time_desc}"
-                            f"（已立刻解禁，纯吓唬）"
                         )
                     except Exception as e:
                         logger.error(
