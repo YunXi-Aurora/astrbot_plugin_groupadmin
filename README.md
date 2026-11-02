@@ -214,4 +214,5 @@ git clone https://github.com/YunXi-Aurora/astrbot_plugin_groupadmin.git
 
 - 原插件：[Zhalslar/astrbot_plugin_qqadmin](https://github.com/Zhalslar/astrbot_plugin_qqadmin)
 - 本仓库 fork 自：[wzq10314/astrbot_plugin_qqadmin](https://github.com/wzq10314/astrbot_plugin_qqadmin)
+- 特别感谢 [@Nanheqiaobei](https://github.com/Nanheqiaobei)：没有直接提交代码，但本次重构的大体方向由他确定，并积极参与了本插件的测试。
 - 沿用 **GPL-3.0**，保留原署名。变更见 [CHANGELOG.md](CHANGELOG.md)。
