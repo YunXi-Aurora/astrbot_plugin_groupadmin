@@ -1,4 +1,22 @@
 # 更新日志
+
+## 1.0.5 · 2026-11-03
+
+### 新功能
+
+- **禁言支持批量与逐人时长**（命令与 LLM 工具均支持）：
+  - 命令：`禁言 123,456 1h` 两人共用；`禁言 123,456 1h,2h` 逐个对应
+  - `娱乐式禁言` 同样支持批量，语义一致（每人各发一次立刻解禁）
+  - LLM：`llm_set_group_ban` 的 `user_id` 可填 `123,456,789`，新增 `durations` 参数填 `1h,2h,3h` 逐人设时长
+- `utils.py` 新增三个解析助手：`split_list_arg` / `pair_targets_and_times` / `parse_ban_args`
+
+### 细节
+
+- 时长少于目标数量时报错并指出差额，不会静默乱配
+- 单个目标失败不影响同批其他人，逐条回执
+- 分隔符兼容英文逗号、中文逗号、顿号
+- `llm_set_group_ban` 的 `duration` 类型由 number 改为 string，可直接传 `"1h"` 等单位串（纯数字仍按秒）
+
 ## 1.0.4 · 2026-11-01
 ### 删除项
 - 删除**宵禁**功能：指令「开启宵禁」「关闭宵禁」、LLM 工具 `llm_start_curfew` / `llm_stop_curfew`、`core/curfew_handle.py`、`curfew_data.json` 持久化及相关配置。

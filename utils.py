@@ -207,3 +207,94 @@ def format_duration(seconds: int) -> str:
         if n:
             parts.append(f"{int(n)}{name}")
     return "".join(parts)
+
+
+def split_list_arg(value: str | list | tuple | None) -> list[str]:
+    """把 "a,b,c" / "a、b、c" / "a b" / list 统一拆成去空白的字符串列表"""
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple)):
+        raw = [str(v) for v in value]
+    else:
+        raw = str(value).replace("，", ",").replace("、", ",").split(",")
+    return [p.strip() for p in raw if p.strip()]
+
+
+def pair_targets_and_times(
+    targets: str | list | tuple | None,
+    durations: str | list | tuple | None,
+    default_duration=None,
+) -> tuple[list[tuple[str, object]], str | None]:
+    """
+    把「目标列表」和「时长列表」按位置配对。
+
+    规则：
+    - 两个列表长度相同 -> 一一对应。
+    - 时长只有一个 -> 所有目标共用该时长（常见场景：一批人同禁言 1 小时）。
+    - 时长多于目标 -> 忽略多余时长。
+    - 目标多于时长 -> 返回错误，避免静默按错时长禁言。
+
+    返回 (pairs, error)：error 非 None 时调用方应直接返回该错误文案。
+    """
+    tids = split_list_arg(targets)
+    if not tids:
+        return [], None
+    times = split_list_arg(durations)
+    if not times:
+        # 没给时长：全部使用默认值（随机或调用方指定）
+        return [(tid, default_duration) for tid in tids], None
+    if len(times) == 1:
+        return [(tid, times[0]) for tid in tids], None
+    if len(times) < len(tids):
+        return [], (
+            f"禁言时长数量（{len(times)}）少于目标数量（{len(tids)}），"
+            "无法一一对应。请补齐时长，或只填一个时长让所有目标共用。"
+        )
+    return list(zip(tids, times)), None
+
+_UNIT_CHARS = "秒时分天日周星期s mhdw".replace(" ", "")
+
+
+def parse_ban_args(raw: str) -> tuple[list[str], list[str]]:
+    """
+    从命令尾部原文里拆出「目标 QQ 号列表」与「时长列表」。
+
+    规则（QQ 号一律用纯数字，时长最好带单位）：
+    - 带单位的 token（如 1h / 30分 / 2天）一律当作时长；
+    - 纯数字 token：若已存在带单位时长，则当作 QQ 号；
+    - 全是纯数字时，最后一个当时间，其余当 QQ 号（保留 `禁言 60` 的原义）。
+
+    例：
+    - "123456,789012 1h"        -> ids=[123456,789012], times=[1h]
+    - "123456,789012 1h,2h"     -> ids=[123456,789012], times=[1h,2h]
+    - "123456 3600"             -> ids=[123456], times=[3600]
+    - "3600"                    -> ids=[], times=[3600]
+    """
+    parts: list[str] = []
+    for tok in str(raw or "").split():
+        parts.extend(split_list_arg(tok))
+    if not parts:
+        return [], []
+
+    flagged: list[tuple[str, str]] = []
+    for p in parts:
+        has_unit = any(c in p.lower() for c in _UNIT_CHARS)
+        if has_unit and parse_duration(p) is not None:
+            flagged.append(("time", p))
+        elif p.isdigit():
+            flagged.append(("digit", p))
+        elif parse_duration(p) is not None:
+            flagged.append(("time", p))
+        else:
+            flagged.append(("other", p))
+
+    has_unit_time = any(k == "time" for k, _ in flagged)
+    times = [v for k, v in flagged if k == "time"]
+    if has_unit_time:
+        ids = [v for k, v in flagged if k == "digit"]
+        return ids, times
+
+    digits = [v for k, v in flagged if k == "digit"]
+    if len(digits) <= 1:
+        return [], digits
+    return digits[:-1], digits[-1:]

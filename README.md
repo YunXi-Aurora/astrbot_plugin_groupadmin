@@ -77,6 +77,8 @@
 | 指令 | 说明 | LLM |
 |---|---|:--:|
 | `禁言 @用户 时间` | 时间支持单位换算，纯数字按秒 | ✅ |
+| `禁言 QQ号1,QQ号2 时长` | 按 QQ 号批量禁言，多人共用同一时长 | ✅ |
+| `禁言 QQ号1,QQ号2 时长1,时长2` | 多人各禁不同时长，按位置一一对应 | ✅ |
 | `娱乐式禁言 @用户 时间` | 下发禁言后 1 秒自动解禁，提示与普通禁言一字不差<br>别名：`玩笑禁言` / `吓唬禁言` | ✅ |
 | `解禁 @用户` | 解除禁言 | ✅ |
 | `全禁 开` / `全禁 关` | 全员禁言 | ✅ |
@@ -135,6 +137,26 @@
 
 单位表：`周 / 星期 / week / w`、`天 / 日 / day / d`、`小时 / hour / h`、`分钟 / min`、`秒 / sec / s`；支持复合（`1h30m`）与小数（`1.5小时`）。
 
+### 批量禁言
+
+不用 @，直接填 QQ 号，多个用逗号分隔（中文逗号、顿号也行）：
+
+```text
+禁言 123456,789012 1h              # 两人都禁 1 小时
+禁言 123456,789012 1h,2h           # 123456 禁 1 小时，789012 禁 2 小时
+禁言 123456,789012,345678 30分,1h,2天
+```
+
+规则：
+
+- 时长只有**一个** → 所有目标共用（也可直接写成 `禁言 123,456 3600`，纯数字按秒）
+- 时长**与人数相等** → 按位置一一对应，`禁言 123,456 1h,2h` 即 123→1h、456→2h
+- 时长**少于人数** → 直接报错并指出差几个，不会乱配
+- 时长**多于人数** → 多余的忽略
+- 每个目标会单独回执一行，成功的成功、失败的报失败，不会一条失败拖垮整批
+
+`娱乐式禁言` 同样支持批量，语义一致（每人各发一次立刻解禁）。
+
 > ⚠️ OneBot 11 标准里 `set_group_ban` 的 `duration` **没有 `-1` 表示永久**这个约定（0 才是解禁）。所以本插件不接受 `-1`，最长按服务端上限 30 天（`2592000` 秒）下发，到期续一次即可。
 
 ---
@@ -145,7 +167,7 @@
 
 | 类别 | 工具 |
 |---|---|
-| 群管操作 | `llm_set_group_ban`（含 `instant_unban` 娱乐式参数）、`llm_set_group_card`、`llm_set_group_special_title`、`llm_set_group_whole_ban`、`llm_set_group_kick`、`llm_set_group_block`、`llm_set_group_name`、`llm_set_group_portrait` |
+| 群管操作 | `llm_set_group_ban`（`user_id` 可填 `1,2,3` 批量 + `durations` 填 `1h,2h,3h` 逐人时长，含 `instant_unban` 娱乐式参数）、`llm_set_group_card`、`llm_set_group_special_title`、`llm_set_group_whole_ban`、`llm_set_group_kick`、`llm_set_group_block`、`llm_set_group_name`、`llm_set_group_portrait` |
 | 精华 / 公告 / 文件 | `llm_set_essence_msg`、`llm_get_essence_msg_list`、`llm_send_group_notice`、`llm_get_group_notice`、`llm_upload_group_file`、`llm_delete_group_file`、`llm_view_group_file` |
 | 撤回 | `llm_delete_msg`、`llm_delete_msg_batch`、`llm_get_recent_messages` |
 | 名单 | `llm_get_special_admins` |

@@ -26,7 +26,7 @@ from .permission import (
     require_admin,
     require_member,
 )
-from .utils import get_ats, parse_bool
+from .utils import get_ats, parse_ban_args, parse_bool, split_list_arg
 from .official import OfficialHandle, HELP, is_official, official_tool
 from .web import QQAdminWebController
 
@@ -215,18 +215,47 @@ class QQAdminPlugin(Star):
 
     @filter.command("禁言")
     @require_admin()
-    async def set_group_ban(self, event: AiocqhttpMessageEvent, ban_time=None):
-        """禁言 @群友 时间，如：禁言 @某人 1分钟 / 禁言 @某人 60s / 禁言 @某人 90"""
-        if result := await self.normal.set_group_ban(event, ban_time):
+    async def set_group_ban(self, event: AiocqhttpMessageEvent):
+        """禁言 @群友 时间；也支持 QQ号批量：禁言 123,456 1h / 禁言 123,456 1h,2h"""
+        raw = event.message_str.partition(" ")[2].strip()
+        ids, times = parse_ban_args(raw)
+        if ids:
+            # 走号码批量模式：ids 与 times 按位置一一对应
+            result = await self.normal.set_group_ban(
+                event,
+                ban_time=times[0] if len(times) == 1 else None,
+                target_id=ids,
+                ban_times=times if len(times) > 1 else None,
+            )
+        else:
+            # 保持原有 @ 模式；时间取解析出的第一个（可能是纯数字或带单位）
+            result = await self.normal.set_group_ban(
+                event, ban_time=times[0] if times else None
+            )
+        if result:
             yield event.plain_result(result)
 
     @filter.command("娱乐式禁言", alias={"玩笑禁言", "吓唬禁言"})
     @require_admin()
-    async def fun_group_ban(self, event: AiocqhttpMessageEvent, ban_time=None):
-        """娱乐式禁言 @群友 时间，下发禁言后立刻解禁（提示文案与普通禁言一致）"""
-        if result := await self.normal.set_group_ban(
-            event, ban_time, instant_unban=True
-        ):
+    async def fun_group_ban(self, event: AiocqhttpMessageEvent):
+        """娱乐式禁言 @群友 时间；也支持 QQ号批量，下发禁言后立刻解禁"""
+        raw = event.message_str.partition(" ")[2].strip()
+        ids, times = parse_ban_args(raw)
+        if ids:
+            result = await self.normal.set_group_ban(
+                event,
+                ban_time=times[0] if len(times) == 1 else None,
+                target_id=ids,
+                instant_unban=True,
+                ban_times=times if len(times) > 1 else None,
+            )
+        else:
+            result = await self.normal.set_group_ban(
+                event,
+                ban_time=times[0] if times else None,
+                instant_unban=True,
+            )
+        if result:
             yield event.plain_result(result)
 
     @filter.command("解禁")
@@ -496,17 +525,23 @@ class QQAdminPlugin(Star):
         self,
         event: AiocqhttpMessageEvent,
         user_id: str,
-        duration: int,
+        duration: str = "",
+        durations: str = "",
         need_auth: bool = True,
         instant_unban: bool = False,
     ):
         """
-        在群聊中禁言某用户，被禁言的用户在禁言期间将无法发送消息。instant_unban为True时为娱乐式禁言：下发禁言后立刻解禁，只吓唬一下不禁真。
+        在群聊中禁言一个或多个用户，被禁言的用户在禁言期间将无法发送消息。
+        支持批量：user_id 填多个（逗号分隔），durations 填对应时长（逗号分隔），按位置一一对应。
+        例：user_id="123,456,789" + durations="1h,2h,3h" → 123 禁 1 小时、456 禁 2 小时、789 禁 3 小时。
+        若只给一个时长，则所有目标共用该时长。
+        instant_unban 为 True 时为娱乐式禁言：下发禁言后立刻解禁，只吓唬一下不禁真。
         Args:
-            user_id(string): OneBot用户QQ号或官方当前群的成员OpenID，不得使用私聊UID
-            duration(number): 禁言持续时间（秒），支持30天内的任意时长（2592000秒），0表示取消禁言
+            user_id(string): OneBot用户QQ号或官方当前群的成员OpenID，不得使用私聊UID。多个用英文逗号分隔，如 "123,456,789"
+            duration(string): 单个目标或所有目标共用的禁言时长，支持单位换算，如 "1h" / "30分钟" / "2天" / "3600"（纯数字按秒）；0 表示取消禁言
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
             instant_unban(boolean): 娱乐式禁言，默认False；为True时下发禁言后立刻解禁（用户会看到禁言提示但随即恢复发言），适用于玩笑场景，用户明确要求"吓唬一下/禁言玩玩"或"禁言后立刻解禁"时使用
+            durations(string): 每个目标各自的禁言时长，逗号分隔且与 user_id 顺序一一对应，如 "1h,2h,3h"。仅当需要给不同人设不同时长时填写；填写后优先于 duration；数量必须不少于目标数量
         """
         if need_auth:
             if error := await perm_manager.llm_perm_block(
@@ -515,8 +550,36 @@ class QQAdminPlugin(Star):
             ):
                 yield error
                 return
+
+        targets = split_list_arg(user_id)
+        if not targets:
+            yield "请提供要禁言的 user_id"
+            return
+
+        per_times = split_list_arg(durations)
+        if per_times and len(per_times) > 1:
+            if len(per_times) < len(targets):
+                yield (
+                    f"禁言时长数量（{len(per_times)}）少于目标数量（{len(targets)}），"
+                    "无法一一对应。请补齐 durations，或只填一个 duration 让所有目标共用。"
+                )
+                return
+            if result := await self.normal.set_group_ban(
+                event,
+                ban_time=None,
+                target_id=targets,
+                instant_unban=instant_unban,
+                ban_times=per_times[: len(targets)],
+            ):
+                yield result
+            return
+
+        shared = per_times[0] if per_times else duration
         if result := await self.normal.set_group_ban(
-            event, ban_time=duration, target_id=user_id, instant_unban=instant_unban
+            event,
+            ban_time=shared if shared != "" else None,
+            target_id=targets,
+            instant_unban=instant_unban,
         ):
             yield result
 

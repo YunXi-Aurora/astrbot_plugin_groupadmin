@@ -12,7 +12,9 @@ from ..utils import (
     format_duration,
     get_ats,
     get_nickname,
+    pair_targets_and_times,
     parse_duration,
+    split_list_arg,
 )
 
 
@@ -25,9 +27,19 @@ class NormalHandle:
         self,
         event: AiocqhttpMessageEvent,
         ban_time: int | None = None,
-        target_id: str | int = "",
+        target_id: str | int | list | None = "",
         instant_unban: bool = False,
+        ban_times: str | list | tuple | None = None,
     ):
+        """
+        禁言一个或多个目标。
+
+        支持三种入参形态：
+        1. target_id 单个 + ban_time 单个（原行为）；
+        2. target_id 为 "123,456" / ["123","456"]，ban_time 单个 -> 所有人同一时长；
+        3. target_id 与 ban_times 都是等长列表 -> 按位置一一配对，
+           如 target_id="1,2,3"、ban_times="1h,2h,3h" -> 1 禁 1 小时、2 禁 2 小时、3 禁 3 小时。
+        """
         group_config = self.db.get_group_snapshot(event.get_group_id())
         if ban_time is None:
             ban_time = self.cfg.get_ban_time_with_range(
@@ -42,18 +54,41 @@ class NormalHandle:
                     "（支持如 60、60秒、60s、1分钟、1min、1小时、1h、1天 等写法）"
                 )
             ban_time = max(parsed, 0)
-        tids = [target_id] if target_id else get_ats(event)
+
+        # 算出 [(uid, 该 uid 的时长或 None 表示沿用 ban_time)]
+        if target_id:
+            pairs, error = pair_targets_and_times(target_id, ban_times)
+            if error:
+                return error
+        else:
+            ats = get_ats(event)
+            times = split_list_arg(ban_times)
+            if len(times) == len(ats):
+                pairs = list(zip(ats, times))
+            else:
+                pairs = [(tid, None) for tid in ats]
+
+        if not pairs:
+            return "未指定要禁言的用户"
+
         results = []
-        for tid in tids:
+        for tid, per_time in pairs:
+            duration = ban_time
+            if per_time is not None:
+                parsed = parse_duration(per_time)
+                if parsed is None:
+                    results.append(f"用户[{tid}]禁言失败：时长 {per_time!r} 无法解析")
+                    continue
+                duration = max(parsed, 0)
             try:
                 await event.bot.set_group_ban(
                     group_id=int(event.get_group_id()),
                     user_id=int(tid),
-                    duration=ban_time,
+                    duration=duration,
                 )
-                time_desc = format_duration(ban_time) if ban_time else "0秒"
+                time_desc = format_duration(duration) if duration else "0秒"
                 msg = f"用户[{tid}]已被禁言{time_desc}"
-                if instant_unban and ban_time > 0:
+                if instant_unban and duration > 0:
                     # 娱乐式禁言：下发后立刻解禁，但提示文案与普通禁言完全一致（不剧透）
                     try:
                         await asyncio.sleep(1)
@@ -73,7 +108,7 @@ class NormalHandle:
                 logger.error(f"禁言失败 群{event.get_group_id()} 用户{tid}: {e!r}")
                 results.append(f"用户[{tid}]禁言失败")
         event.stop_event()
-        return "\n".join(results) if results else "未指定要禁言的用户"
+        return "\n".join(results)
 
     async def set_group_whole_ban(self, event: AiocqhttpMessageEvent, enable: bool):
         await event.bot.set_group_whole_ban(
