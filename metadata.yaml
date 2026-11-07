@@ -2,7 +2,7 @@ name: astrbot_plugin_groupadmin
 display_name: QQ群管（重构版）
 desc: "QQ 群管理插件，采用「特殊权限名单制」四级权限模型：超管拥有全部权限与名单管理；每群独立的特殊权限名单成员可执行所有群管指令；群主/管理员可执行基础管理与查询指令；普通成员仅可查询。同时支持 OneBot 与 QQ 官方机器人平台。"
 help: 发送 /群管帮助 查看完整指令列表；权限采用特殊权限名单制，详见 README。
-version: 1.0.6
+version: 1.0.7
 author: YunXi-Aurora
 repo: https://github.com/wzq10314/astrbot_plugin_qqadmin
 support_platforms:

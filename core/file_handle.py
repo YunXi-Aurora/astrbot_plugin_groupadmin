@@ -118,14 +118,54 @@ class FileHandle:
 
         return "\n".join(info), mapping
 
+    @staticmethod
+    def _parse_size(file: dict):
+        """
+        取文件字节数。
+
+        不同协议端字段名不一致（NapCat 用 file_size，旧 go-cqhttp 用 size），
+        先找能解析出正数的字段；拿不到正数时再看是否存在可解析的 0（真实空
+        文件）；完全缺字段返回 None，避免把「字段缺失」谎报成「文件为空」。
+        """
+        keys = ("file_size", "size", "fileSize")
+        for key in keys:
+            raw = file.get(key)
+            if raw is None:
+                continue
+            try:
+                value = int(float(str(raw).strip()))
+            except (TypeError, ValueError):
+                continue
+            if value > 0:
+                return value
+        for key in keys:
+            raw = file.get(key)
+            if raw is None:
+                continue
+            try:
+                return int(float(str(raw).strip()))
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    @staticmethod
+    def _human_size(size: int) -> str:
+        """字节数转人类可读文本"""
+        if size < 1024:
+            return f"{size} B"
+        for unit, step in (("GB", 1024**3), ("MB", 1024**2), ("KB", 1024)):
+            if size >= step:
+                return f"{size / step:.2f} {unit}"
+        return f"{size} B"
+
     def _format_file_info(self, file: dict) -> str:
         """格式化文件信息"""
         lines = [f"【📄 {file.get('file_name', '未知')}】"]
-        size = int(file.get("size", "0"))
-        if size < 1024**2:
-            lines.append(f"文件大小: {size / 1024:.2f} KB")
+        size = self._parse_size(file)
+        if size is None:
+            lines.append("文件大小: 未知（协议端未返回大小字段）")
         else:
-            lines.append(f"文件大小: {size / (1024**2):.2f} MB")
+            lines.append(f"文件大小: {self._human_size(size)}")
 
         lines.append(
             f"上传者：{file.get('uploader_name', '未知')}({file.get('uploader', '未知')})"
