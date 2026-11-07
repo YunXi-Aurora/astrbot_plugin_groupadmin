@@ -13,6 +13,7 @@ from ..utils import (
     get_ats,
     get_nickname,
     pair_targets_and_times,
+    parse_bool,
     parse_duration,
     split_list_arg,
 )
@@ -28,8 +29,9 @@ class NormalHandle:
         event: AiocqhttpMessageEvent,
         ban_time: int | None = None,
         target_id: str | int | list | None = "",
-        instant_unban: bool = False,
+        instant_unban: bool | list | tuple | str = False,
         ban_times: str | list | tuple | None = None,
+        instant_unbans: str | list | tuple | None = None,
     ):
         """
         禁言一个或多个目标。
@@ -39,6 +41,11 @@ class NormalHandle:
         2. target_id 为 "123,456" / ["123","456"]，ban_time 单个 -> 所有人同一时长；
         3. target_id 与 ban_times 都是等长列表 -> 按位置一一配对，
            如 target_id="1,2,3"、ban_times="1h,2h,3h" -> 1 禁 1 小时、2 禁 2 小时、3 禁 3 小时。
+
+        instant_unban 支持分人：
+        - 传 True/False -> 整批统一；
+        - 传 "true,false,true" 或 [True, False, True] -> 与目标按位置一一对应；
+        - instant_unbans 与 instant_unban 同义，二者取其一即可（instant_unbans 优先）。
         """
         group_config = self.db.get_group_snapshot(event.get_group_id())
         if ban_time is None:
@@ -71,8 +78,36 @@ class NormalHandle:
         if not pairs:
             return "未指定要禁言的用户"
 
+        # 分人解析 instant_unban：布尔 -> 整批同值；列表/字符串 -> 按位置对应
+        flags_src = instant_unbans if instant_unbans not in (None, "", []) else instant_unban
+        if isinstance(flags_src, (list, tuple)):
+            flag_list = [parse_bool(f, default=False) for f in flags_src]
+        elif isinstance(flags_src, str):
+            raw_flags = split_list_arg(flags_src)
+            if len(raw_flags) > 1:
+                flag_list = [parse_bool(f, default=False) for f in raw_flags]
+            else:
+                flag_list = [parse_bool(flags_src, default=False)]
+        else:
+            flag_list = [bool(flags_src)]
+
+        # 数量不足直接拒绝，避免「该真禁言的被当成吓唬」这种静默误判
+        if len(flag_list) > 1 and len(flag_list) < len(pairs):
+            return (
+                f"娱乐式开关数量（{len(flag_list)}）少于目标数量（{len(pairs)}），"
+                "无法一一对应。请补齐，或只填一个让所有目标共用。"
+            )
+        flag_list = flag_list[: len(pairs)]
+
+        def _flag_at(idx: int) -> bool:
+            """单个值 -> 全员共用；等长列表 -> 按位置"""
+            if len(flag_list) == 1:
+                return flag_list[0]
+            return flag_list[idx]
+
         results = []
-        for tid, per_time in pairs:
+        for idx, (tid, per_time) in enumerate(pairs):
+            do_instant_unban = _flag_at(idx)
             duration = ban_time
             if per_time is not None:
                 parsed = parse_duration(per_time)
@@ -88,7 +123,7 @@ class NormalHandle:
                 )
                 time_desc = format_duration(duration) if duration else "0秒"
                 msg = f"用户[{tid}]已被禁言{time_desc}"
-                if instant_unban and duration > 0:
+                if do_instant_unban and duration > 0:
                     # 娱乐式禁言：下发后立刻解禁，但提示文案与普通禁言完全一致（不剧透）
                     try:
                         await asyncio.sleep(1)

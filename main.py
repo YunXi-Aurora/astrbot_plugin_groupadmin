@@ -216,21 +216,25 @@ class QQAdminPlugin(Star):
     @filter.command("禁言")
     @require_admin()
     async def set_group_ban(self, event: AiocqhttpMessageEvent):
-        """禁言 @群友 时间；也支持 QQ号批量：禁言 123,456 1h / 禁言 123,456 1h,2h"""
+        """禁言 @群友 时间；支持 QQ号批量与逐人时长/逐人真假：禁言 123,456 1h,2h 玩,真"""
         raw = event.message_str.partition(" ")[2].strip()
-        ids, times = parse_ban_args(raw)
+        ids, times, flags = parse_ban_args(raw)
         if ids:
-            # 走号码批量模式：ids 与 times 按位置一一对应
+            # 号码批量模式：ids / times / flags 均按位置一一对应
             result = await self.normal.set_group_ban(
                 event,
                 ban_time=times[0] if len(times) == 1 else None,
                 target_id=ids,
                 ban_times=times if len(times) > 1 else None,
+                instant_unban=False,
+                instant_unbans=flags if flags else None,
             )
         else:
-            # 保持原有 @ 模式；时间取解析出的第一个（可能是纯数字或带单位）
+            # @ 模式：时间与真假都取解析出的第一个
             result = await self.normal.set_group_ban(
-                event, ban_time=times[0] if times else None
+                event,
+                ban_time=times[0] if times else None,
+                instant_unban=flags[0] if flags else False,
             )
         if result:
             yield event.plain_result(result)
@@ -238,22 +242,23 @@ class QQAdminPlugin(Star):
     @filter.command("娱乐式禁言", alias={"玩笑禁言", "吓唬禁言"})
     @require_admin()
     async def fun_group_ban(self, event: AiocqhttpMessageEvent):
-        """娱乐式禁言 @群友 时间；也支持 QQ号批量，下发禁言后立刻解禁"""
+        """娱乐式禁言 @群友 时间；支持批量并逐人指定真假：娱乐式禁言 123,456 1h,2h 玩,真"""
         raw = event.message_str.partition(" ")[2].strip()
-        ids, times = parse_ban_args(raw)
+        ids, times, flags = parse_ban_args(raw)
         if ids:
             result = await self.normal.set_group_ban(
                 event,
                 ban_time=times[0] if len(times) == 1 else None,
                 target_id=ids,
-                instant_unban=True,
                 ban_times=times if len(times) > 1 else None,
+                instant_unban=True,
+                instant_unbans=flags if flags else None,
             )
         else:
             result = await self.normal.set_group_ban(
                 event,
                 ban_time=times[0] if times else None,
-                instant_unban=True,
+                instant_unban=flags[0] if flags else True,
             )
         if result:
             yield event.plain_result(result)
@@ -529,6 +534,7 @@ class QQAdminPlugin(Star):
         durations: str = "",
         need_auth: bool = True,
         instant_unban: bool = False,
+        instant_unbans: str = "",
     ):
         """
         在群聊中禁言一个或多个用户，被禁言的用户在禁言期间将无法发送消息。
@@ -542,6 +548,7 @@ class QQAdminPlugin(Star):
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
             instant_unban(boolean): 娱乐式禁言，默认False；为True时下发禁言后立刻解禁（用户会看到禁言提示但随即恢复发言），适用于玩笑场景，用户明确要求"吓唬一下/禁言玩玩"或"禁言后立刻解禁"时使用
             durations(string): 每个目标各自的禁言时长，逗号分隔且与 user_id 顺序一一对应，如 "1h,2h,3h"。仅当需要给不同人设不同时长时填写；填写后优先于 duration；数量必须不少于目标数量
+            instant_unbans(string): 逐人娱乐式开关，逗号分隔且与 user_id 顺序一一对应，如 "true,false,true"。用于同一批里有的人只吓唬、有的人真禁言；填写后优先于 instant_unban，数量必须不少于目标数量
         """
         if need_auth:
             if error := await perm_manager.llm_perm_block(
@@ -556,6 +563,15 @@ class QQAdminPlugin(Star):
             yield "请提供要禁言的 user_id"
             return
 
+        per_flags = split_list_arg(instant_unbans)
+        if per_flags and len(per_flags) > 1 and len(per_flags) < len(targets):
+            yield (
+                f"instant_unbans 数量（{len(per_flags)}）少于目标数量（{len(targets)}），"
+                "无法一一对应。请补齐，或只填一个 instant_unban 让所有目标共用。"
+            )
+            return
+        flags_arg = per_flags if len(per_flags) > 1 else None
+
         per_times = split_list_arg(durations)
         if per_times and len(per_times) > 1:
             if len(per_times) < len(targets):
@@ -569,6 +585,7 @@ class QQAdminPlugin(Star):
                 ban_time=None,
                 target_id=targets,
                 instant_unban=instant_unban,
+                instant_unbans=flags_arg,
                 ban_times=per_times[: len(targets)],
             ):
                 yield result
@@ -580,6 +597,7 @@ class QQAdminPlugin(Star):
             ban_time=shared if shared != "" else None,
             target_id=targets,
             instant_unban=instant_unban,
+            instant_unbans=flags_arg,
         ):
             yield result
 

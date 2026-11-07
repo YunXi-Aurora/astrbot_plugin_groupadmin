@@ -254,31 +254,45 @@ def pair_targets_and_times(
 
 _UNIT_CHARS = "秒时分天日周星期s mhdw".replace(" ", "")
 
+# 娱乐式禁言的逐人开关词：玩 = 下发后立刻解禁，真 = 正常禁言
+_INSTANT_TRUE_WORDS = frozenset({"玩", "假", "吓", "吓唬", "玩笑", "娱乐"})
+_INSTANT_FALSE_WORDS = frozenset({"真", "正", "实", "正常", "实禁"})
 
-def parse_ban_args(raw: str) -> tuple[list[str], list[str]]:
+
+def parse_ban_args(raw: str) -> tuple[list[str], list[str], list[bool]]:
     """
-    从命令尾部原文里拆出「目标 QQ 号列表」与「时长列表」。
+    从命令尾部原文里拆出「目标 QQ 号列表」「时长列表」「逐人娱乐式开关」。
 
     规则（QQ 号一律用纯数字，时长最好带单位）：
     - 带单位的 token（如 1h / 30分 / 2天）一律当作时长；
     - 纯数字 token：若已存在带单位时长，则当作 QQ 号；
-    - 全是纯数字时，最后一个当时间，其余当 QQ 号（保留 `禁言 60` 的原义）。
+    - 全是纯数字时，最后一个当时间，其余当 QQ 号（保留 `禁言 60` 的原义）；
+    - 玩 / 假 / 吓 视为「下发后立刻解禁」，真 / 正 / 实 视为「正常禁言」，
+      按出现顺序与目标一一对应；出现真假词时纯数字一律视为 QQ 号。
 
     例：
-    - "123456,789012 1h"        -> ids=[123456,789012], times=[1h]
-    - "123456,789012 1h,2h"     -> ids=[123456,789012], times=[1h,2h]
-    - "123456 3600"             -> ids=[123456], times=[3600]
-    - "3600"                    -> ids=[], times=[3600]
+    - "123456,789012 1h"                -> ids=[123456,789012], times=[1h], flags=[]
+    - "123456,789012 1h,2h"             -> ids=[123456,789012], times=[1h,2h], flags=[]
+    - "123456,789012 1h,2h 玩,真"       -> flags=[True, False]
+    - "123456 3600"                     -> ids=[123456], times=[3600]
+    - "3600"                            -> ids=[], times=[3600]
     """
     parts: list[str] = []
     for tok in str(raw or "").split():
         parts.extend(split_list_arg(tok))
     if not parts:
-        return [], []
+        return [], [], []
 
-    flagged: list[tuple[str, str]] = []
+    flagged: list[tuple[str, object]] = []
     for p in parts:
-        has_unit = any(c in p.lower() for c in _UNIT_CHARS)
+        low = p.lower()
+        if low in _INSTANT_TRUE_WORDS:
+            flagged.append(("flag", True))
+            continue
+        if low in _INSTANT_FALSE_WORDS:
+            flagged.append(("flag", False))
+            continue
+        has_unit = any(c in low for c in _UNIT_CHARS)
         if has_unit and parse_duration(p) is not None:
             flagged.append(("time", p))
         elif p.isdigit():
@@ -288,13 +302,17 @@ def parse_ban_args(raw: str) -> tuple[list[str], list[str]]:
         else:
             flagged.append(("other", p))
 
+    flags = [v for k, v in flagged if k == "flag"]
     has_unit_time = any(k == "time" for k, _ in flagged)
     times = [v for k, v in flagged if k == "time"]
     if has_unit_time:
         ids = [v for k, v in flagged if k == "digit"]
-        return ids, times
+        return ids, times, flags
 
     digits = [v for k, v in flagged if k == "digit"]
+    # 出现真假词时，纯数字一律视为 QQ 号（如 "123 玩"），时长走默认
+    if flags:
+        return digits, [], flags
     if len(digits) <= 1:
-        return [], digits
-    return digits[:-1], digits[-1:]
+        return [], digits, flags
+    return digits[:-1], digits[-1:], flags

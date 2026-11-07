@@ -155,7 +155,23 @@
 - 时长**多于人数** → 多余的忽略
 - 每个目标会单独回执一行，成功的成功、失败的报失败，不会一条失败拖垮整批
 
-`娱乐式禁言` 同样支持批量，语义一致（每人各发一次立刻解禁）。
+### 逐人真假（玩 / 真）
+
+同一批里有人只吓唬、有人真禁言，在末尾加一列开关词，与目标按位置对应：
+
+```text
+禁言 123,456 1h,2h 玩,真      # 123 吓唬（1 秒后解禁），456 真禁 2 小时
+娱乐式禁言 123,456 1h 玩,真   # 同上
+```
+
+| 词 | 含义 |
+|---|---|
+| `玩` / `假` / `吓` / `吓唬` / `玩笑` | 下发禁言后立刻解禁（1 秒） |
+| `真` / `正` / `实` / `正常` | 正常禁言，到期才解 |
+
+- 开关词**出现时**，前面的纯数字一律当 QQ 号（`禁言 123 玩` 是吓唬 123，不是禁 123 秒）
+- 开关数量少于人数 → 直接报错，不会静默把该真禁的人当吓唬
+- 不填开关词时，`禁言` 全真、`娱乐式禁言` 全玩，保持原行为
 
 > ⚠️ OneBot 11 标准里 `set_group_ban` 的 `duration` **没有 `-1` 表示永久**这个约定（0 才是解禁）。所以本插件不接受 `-1`，最长按服务端上限 30 天（`2592000` 秒）下发，到期续一次即可。
 
@@ -167,7 +183,7 @@
 
 | 类别 | 工具 |
 |---|---|
-| 群管操作 | `llm_set_group_ban`（`user_id` 可填 `1,2,3` 批量 + `durations` 填 `1h,2h,3h` 逐人时长，含 `instant_unban` 娱乐式参数）、`llm_set_group_card`、`llm_set_group_special_title`、`llm_set_group_whole_ban`、`llm_set_group_kick`、`llm_set_group_block`、`llm_set_group_name`、`llm_set_group_portrait` |
+| 群管操作 | `llm_set_group_ban`（`user_id` 可填 `1,2,3` 批量 + `durations` 填 `1h,2h,3h` 逐人时长、`instant_unbans` 填 `true,false` 逐人真假，含 `instant_unban` 娱乐式参数）、`llm_set_group_card`、`llm_set_group_special_title`、`llm_set_group_whole_ban`、`llm_set_group_kick`、`llm_set_group_block`、`llm_set_group_name`、`llm_set_group_portrait` |
 | 精华 / 公告 / 文件 | `llm_set_essence_msg`、`llm_get_essence_msg_list`、`llm_send_group_notice`、`llm_get_group_notice`、`llm_upload_group_file`、`llm_delete_group_file`、`llm_view_group_file` |
 | 撤回 | `llm_delete_msg`、`llm_delete_msg_batch`、`llm_get_recent_messages` |
 | 名单 | `llm_get_special_admins` |
