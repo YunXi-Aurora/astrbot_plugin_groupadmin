@@ -33,6 +33,31 @@ from .official import OfficialHandle, HELP, is_official, official_tool
 from .web import QQAdminWebController
 
 
+
+# OneBot / NapCat 平台的群管帮助。官方机器人走 official.HELP，两套命令集不同。
+ONEBOT_ONLY_HINT = (
+    "{cmd} 是 QQ 官方机器人专用指令，当前 NapCat / OneBot 平台不适用。\n"
+    "本平台请发送 /群管帮助 查看可用指令。"
+)
+
+HELP_ONE = """QQ群管（重构版） · OneBot
+【查询】/群友信息  /群公告  /群精华  /查看群文件
+【禁言】/禁言 @某人 1h30m   /禁言 QQ号1,QQ号2 1h,2h   /娱乐式禁言 @某人 30m 玩
+        /解禁 @某人   /全禁 开|关
+【管理】/改名 新昵称 @某人   /改头衔 头衔 @某人   /申请头衔 头衔
+        /踢了 @某人   /群拉黑 @某人   /上管 @某人   /下管 @某人
+        /设精（引用） /移精（引用）   /撤回（引用） /撤回 @某人 数量
+        /发布群公告 内容   /设置群名 新群名   /设置群头像（引用图片）
+        /上传群文件   /删除群文件
+【进群】/进群审核 开|关   /进群白词 词   /进群黑词 词   /未命中驳回 开
+        /进群次数 n   /进群黑名单 +QQ|-QQ   /进群禁言 秒   /进群欢迎 开
+        /退群通知 开   /退群拉黑 开   /批准   /驳回 理由
+【超管】/特殊权限 查看|添加 @成员|删除 @成员|清空
+        /群管状态  /群管配置 群号 配置串  /群管重置 群号|all
+时间单位：周/天/小时/分钟/秒，或 w/d/h/min/sec；支持 1h30m、1.5小时。
+官方机器人专用命令（禁言状态/入群申请/群黑名单/解除群拉黑）不适用于本平台。
+"""
+
 class QQAdminPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -62,38 +87,50 @@ class QQAdminPlugin(Star):
     async def official_help(self, event: AiocqhttpMessageEvent):
         if is_official(event):
             yield event.plain_result(HELP)
-            event.stop_event()
+        else:
+            yield event.plain_result(HELP_ONE)
+        event.stop_event()
 
     @filter.command("群管状态")
     async def official_status(self, event: AiocqhttpMessageEvent):
         if is_official(event):
             yield event.plain_result('正在检查本群的官方接口权限，请稍等～')
             yield event.plain_result(await self.official.run('status', event))
-            event.stop_event()
+        else:
+            yield event.plain_result(ONEBOT_ONLY_HINT.format(cmd="群管状态"))
+        event.stop_event()
 
     @filter.command("禁言状态")
     async def official_mutes(self, event: AiocqhttpMessageEvent):
         if is_official(event):
             yield event.plain_result(await self.official.run('mutes', event))
-            event.stop_event()
+        else:
+            yield event.plain_result(ONEBOT_ONLY_HINT.format(cmd="禁言状态"))
+        event.stop_event()
 
     @filter.command("入群申请")
     async def official_requests(self, event: AiocqhttpMessageEvent):
         if is_official(event):
             yield event.plain_result(await self.official.run('requests', event))
-            event.stop_event()
+        else:
+            yield event.plain_result(ONEBOT_ONLY_HINT.format(cmd="入群申请"))
+        event.stop_event()
 
     @filter.command("群黑名单")
     async def official_blacklist(self, event: AiocqhttpMessageEvent):
         if is_official(event):
             yield event.plain_result(await self.official.run('blacklist', event))
-            event.stop_event()
+        else:
+            yield event.plain_result(ONEBOT_ONLY_HINT.format(cmd="群黑名单"))
+        event.stop_event()
 
     @filter.command("解除群拉黑")
     async def official_unblock(self, event: AiocqhttpMessageEvent, member_id: str = ''):
         if is_official(event):
             yield event.plain_result(await self.official.run('unblock', event, {'member_id': member_id}))
-            event.stop_event()
+        else:
+            yield event.plain_result(ONEBOT_ONLY_HINT.format(cmd="解除群拉黑"))
+        event.stop_event()
 
     @filter.llm_tool()
     async def qqadmin_official_query(self, event: AiocqhttpMessageEvent, kind: str = 'status'):
@@ -272,7 +309,7 @@ class QQAdminPlugin(Star):
         if result := await self.normal.set_group_ban(event, ban_time=0):
             yield event.plain_result(result)
 
-    @filter.command("全禁", alias={"全员禁言", "全员禁言"})
+    @filter.command("全禁", alias={"全员禁言", "群全员禁言"})
     @require_admin()
     async def set_group_whole_ban(
         self, event: AiocqhttpMessageEvent, enable: bool | str = True

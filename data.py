@@ -222,13 +222,6 @@ class QQAdminDB:
             lst.append(value)
             await self.set(gid, field, lst)
 
-    async def remove(self, gid: str, field: str, value):
-        """
-        列表字段删除（自动创建列表）
-        """
-        lst = [i for i in await self.get(gid, field, []) if i != value]
-        await self.set(gid, field, lst)
-
     # ============================== 删除群配置 ==============================
 
     async def delete_group(self, gid: str):
