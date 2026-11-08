@@ -1,5 +1,20 @@
 # 更新日志
 
+## 1.0.11 · 2026-11-08
+
+### 修复（行为修正）
+
+- **`llm_download_group_file` 不再把文件发回群聊**：此前实现是把文件作为群文件消息 `event.send` 到群里，导致用户能直接拿到文件，与「下载到服务器、用户拿不到」的原始需求相反。现在：
+  - 去掉 `event.send` / `MessageChain` / `File` 发送逻辑，只落盘
+  - 返回内容改为「已下载到服务器：<服务器绝对路径>（文件名，大小；未发到群聊，仅存于 bot 本地）」
+  - 文件保存到新增的 `download_dir`（`<数据目录>/downloads`），与上传缓存 `file_dir` 分开
+  - 工具描述同步改写：明确「下载到 bot 所在服务器本地，不会发回群聊，用户拿不到文件」
+
+### 细节
+
+- `config.py` 新增 `download_dir` 属性并自动创建目录
+- `core/file_handle.py` 的 `download_group_file` 落盘目标从 `file_dir` 改为 `download_dir`
+
 ## 1.0.10 · 2026-11-08
 
 ### 新功能

@@ -189,7 +189,8 @@
 | 群管操作 | `llm_set_group_ban`（`user_id` 可填 `1,2,3` 批量 + `durations` 填 `1h,2h,3h` 逐人时长、`instant_unbans` 填 `true,false` 逐人真假，含 `instant_unban` 娱乐式参数）、`llm_set_group_card`、`llm_set_group_special_title`、`llm_set_group_whole_ban`、`llm_set_group_kick`、`llm_set_group_block`、`llm_set_group_name`、`llm_set_group_portrait` |
 | 精华 / 公告 / 文件 | `llm_set_essence_msg`、`llm_get_essence_msg_list`、`llm_send_group_notice`、`llm_get_group_notice`、`llm_upload_group_file`、`llm_delete_group_file`、`llm_view_group_file`、`llm_download_group_file` |
 
-> `llm_download_group_file` 权限更严：只有**超管与特殊权限名单成员**能调（群主/管理员只能 `llm_view_group_file` 看清单）。原因是下载会占 bot 宿主的磁盘与带宽，并按 `download_max_mb` 封顶体积。
+> `llm_download_group_file` 会把群文件**下载到 bot 服务器本地**（`download_dir`），并**不会发回群聊**，用户拿不到文件本身。
+> 权限更严：只有**超管与特殊权限名单成员**能调（群主/管理员只能 `llm_view_group_file` 看清单）。按 `download_max_mb` 封顶体积。
 | 撤回 | `llm_delete_msg`、`llm_delete_msg_batch`、`llm_get_recent_messages`、**`llm_recall_and_ban`** |
 | 名单 | `llm_get_special_admins` |
 | 官方平台 | `qqadmin_official_query`、`qqadmin_official_approval` |

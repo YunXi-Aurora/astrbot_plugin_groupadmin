@@ -16,6 +16,8 @@ from ..utils import download_file
 class FileHandle:
     def __init__(self, config: PluginConfig):
         self.data_dir = config.file_dir
+        # 下载专用目录：与上传缓存分开，只存 bot 拉取下来的群文件，不发回群聊
+        self.download_dir = getattr(config, "download_dir", config.file_dir)
 
     async def _parse_path(
         self, event: AiocqhttpMessageEvent, path: str
@@ -394,9 +396,9 @@ class FileHandle:
         max_mb: int = 100,
     ) -> tuple[Path | None, dict | None, str]:
         """
-        下载群文件到本地缓存目录，返回 (本地路径, 文件对象, 错误说明)。
+        下载群文件到 bot 服务器本地的 download_dir，返回 (本地路径, 文件对象, 错误说明)。
 
-        只负责落盘，不负责发送；发送由调用方决定用群聊还是私聊。
+        只落盘，绝不发送给任何用户；文件仅供 bot 自己读取/处理。
         """
         file, err = await self._locate_file(event, path)
         if not file:
@@ -418,7 +420,7 @@ class FileHandle:
         raw_name = str(file.get("file_name") or "群文件")
         # 去掉路径分隔符，防止写到目录外
         safe_name = re.sub(r'[\\/:*?"<>|]', "_", raw_name).strip() or "群文件"
-        save_path = self.data_dir / safe_name
+        save_path = self.download_dir / safe_name
         save_path.parent.mkdir(parents=True, exist_ok=True)
 
         if os.path.exists(save_path):

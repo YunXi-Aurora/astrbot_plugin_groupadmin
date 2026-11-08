@@ -132,6 +132,9 @@ class PluginConfig(ConfigNode):
         self.group_notice_dir.mkdir(parents=True, exist_ok=True)
         self.file_dir = self.data_dir / "file"
         self.file_dir.mkdir(parents=True, exist_ok=True)
+        # 群文件下载落盘目录（只给 bot 自己用，绝不发回群聊）
+        self.download_dir = self.data_dir / "downloads"
+        self.download_dir.mkdir(parents=True, exist_ok=True)
 
         self.refresh_runtime_settings()
 
