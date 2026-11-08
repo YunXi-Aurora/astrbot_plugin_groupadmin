@@ -1215,6 +1215,111 @@ class QQAdminPlugin(Star):
             yield reason
 
     @filter.llm_tool()
+    async def llm_recall_and_ban(
+        self,
+        event: AiocqhttpMessageEvent,
+        user_id: str,
+        count: int = 1,
+        message_ids: str = "",
+        duration: str = "",
+        reason: str = "",
+        need_auth: bool = True,
+    ):
+        """
+        一次性完成「撤回某人的消息 + 禁言该用户」，用一步代替先查消息ID再分别撤回和禁言。
+        适用于「把他说的话撤了并且禁言」「撤回并踢出前先处置」这类组合要求。
+        撤回与禁言各自独立执行，任一失败不影响另一项，结果会分别汇报。
+        Args:
+            user_id(string): 要处置的用户QQ号（必填），用于禁言与按人撤回
+            count(number): 撤回该用户最近多少条消息，默认1；传了 message_ids 时此项忽略
+            message_ids(string): 可选，精确撤回指定的消息ID（英文逗号分隔，如 "123,456"），用于撤回不连续的指定消息；留空则按 user_id + count 撤回
+            duration(string): 禁言时长，支持单位换算如 "1h" / "30分钟" / "2天"；留空则使用随机时长；填 "0" 表示只撤回不禁言
+            reason(string): 可选，处置原因，会一并记录到返回结果里便于在群内说明
+            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
+        """
+        if event.platform_meta.name != "aiocqhttp":
+            yield "该工具需要 NapCat / OneBot 平台；QQ 官方机器人不提供此组合接口。"
+            return
+        if event.is_private_chat():
+            yield "该工具仅支持在 QQ 群聊中调用。"
+            return
+        if need_auth:
+            if error := await perm_manager.llm_perm_block(
+                event, bot_perm=PermLevel.BOT_ADMIN
+            ):
+                yield error
+                return
+
+        target = str(user_id or "").strip()
+        if not target:
+            yield "请提供要处置的 user_id"
+            return
+
+        results = []
+
+        # ---------- 第一步：撤回 ----------
+        ids_str = str(message_ids or "").strip()
+        recall_count = 0
+        recall_err = ""
+        if ids_str:
+            try:
+                mids = [int(x) for x in ids_str.split(",") if x.strip()]
+            except ValueError:
+                recall_err = "message_ids 必须是英文逗号分隔的数字"
+            else:
+                current_mid = getattr(event.message_obj, "message_id", None)
+                mids = [m for m in mids if m != current_mid]
+                if mids:
+                    try:
+                        recall_count = await self.recall.delete_msgs_by_ids(event, mids)
+                    except Exception as e:
+                        logger.error(f"组合处置撤回失败 群{event.get_group_id()}: {e!r}")
+                        recall_err = str(e)
+                else:
+                    recall_err = "指定的消息ID只有本次请求本身，无可撤回"
+        elif int(count) > 0:
+            try:
+                recall_count = await self.recall.recall_user_messages(
+                    event, {target}, max(int(count), 1)
+                )
+            except Exception as e:
+                logger.error(f"组合处置撤回失败 群{event.get_group_id()}: {e!r}")
+                recall_err = str(e)
+
+        if recall_err:
+            results.append(f"撤回：失败（{recall_err}）")
+        elif recall_count > 0:
+            results.append(f"撤回：已撤回 {recall_count} 条消息")
+        else:
+            results.append("撤回：未撤到消息（可能已超时或不在最近窗口内）")
+
+        # ---------- 第二步：禁言 ----------
+        ban_arg = str(duration or "").strip()
+        if ban_arg == "0":
+            results.append("禁言：按要求跳过（duration=0 只撤回）")
+        else:
+            try:
+                ban_result = await self.normal.set_group_ban(
+                    event,
+                    ban_time=ban_arg if ban_arg else None,
+                    target_id=[target],
+                    instant_unban=False,
+                )
+            except Exception as e:
+                logger.error(f"组合处置禁言失败 群{event.get_group_id()}: {e!r}")
+                results.append(f"禁言：失败（{e}）")
+            else:
+                if ban_result:
+                    results.append(f"禁言：{ban_result}")
+                else:
+                    results.append("禁言：已下发")
+
+        head = f"对 {target} 的处置完成"
+        if reason:
+            head += f"（原因：{reason}）"
+        yield head + "\n" + "\n".join(results)
+
+    @filter.llm_tool()
     async def llm_get_special_admins(self, event: AiocqhttpMessageEvent):
         """查看当前群的特殊权限名单，名单内成员可执行所有群管指令。
         Args:

@@ -182,7 +182,7 @@
 
 ## LLM 工具
 
-共 **22 个** `@filter.llm_tool()`。被调用时强制过 `perm_manager` 四级校验——模型无法用 `need_auth=False` 绕过。
+共 **23 个** `@filter.llm_tool()`。被调用时强制过 `perm_manager` 四级校验——模型无法用 `need_auth=False` 绕过。
 
 | 类别 | 工具 |
 |---|---|
@@ -190,7 +190,7 @@
 | 精华 / 公告 / 文件 | `llm_set_essence_msg`、`llm_get_essence_msg_list`、`llm_send_group_notice`、`llm_get_group_notice`、`llm_upload_group_file`、`llm_delete_group_file`、`llm_view_group_file`、`llm_download_group_file` |
 
 > `llm_download_group_file` 权限更严：只有**超管与特殊权限名单成员**能调（群主/管理员只能 `llm_view_group_file` 看清单）。原因是下载会占 bot 宿主的磁盘与带宽，并按 `download_max_mb` 封顶体积。
-| 撤回 | `llm_delete_msg`、`llm_delete_msg_batch`、`llm_get_recent_messages` |
+| 撤回 | `llm_delete_msg`、`llm_delete_msg_batch`、`llm_get_recent_messages`、**`llm_recall_and_ban`** |
 | 名单 | `llm_get_special_admins` |
 | 官方平台 | `qqadmin_official_query`、`qqadmin_official_approval` |
 
