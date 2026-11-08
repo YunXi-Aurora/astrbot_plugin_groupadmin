@@ -185,6 +185,8 @@
 |---|---|
 | 群管操作 | `llm_set_group_ban`（`user_id` 可填 `1,2,3` 批量 + `durations` 填 `1h,2h,3h` 逐人时长、`instant_unbans` 填 `true,false` 逐人真假，含 `instant_unban` 娱乐式参数）、`llm_set_group_card`、`llm_set_group_special_title`、`llm_set_group_whole_ban`、`llm_set_group_kick`、`llm_set_group_block`、`llm_set_group_name`、`llm_set_group_portrait` |
 | 精华 / 公告 / 文件 | `llm_set_essence_msg`、`llm_get_essence_msg_list`、`llm_send_group_notice`、`llm_get_group_notice`、`llm_upload_group_file`、`llm_delete_group_file`、`llm_view_group_file`、`llm_download_group_file` |
+
+> `llm_download_group_file` 权限更严：只有**超管与特殊权限名单成员**能调（群主/管理员只能 `llm_view_group_file` 看清单）。原因是下载会占 bot 宿主的磁盘与带宽，并按 `download_max_mb` 封顶体积。
 | 撤回 | `llm_delete_msg`、`llm_delete_msg_batch`、`llm_get_recent_messages` |
 | 名单 | `llm_get_special_admins` |
 | 官方平台 | `qqadmin_official_query`、`qqadmin_official_approval` |
@@ -222,6 +224,8 @@ AstrBot 插件页 → 点插件 logo → 「插件行为 → 页面」。
 - 每个群的表单顶部就是 **「特殊权限名单」编辑框**，逐行填 QQ 号（官方平台填 OpenID），保存即生效，**无需重启**
 - 默认群里的名单是新群模板值；已独立配置的群以自己的名单为准
 - 支持浅色 / 深色主题
+
+插件全局配置里另有 **`download_max_mb`（群文件下载上限，默认 100 MB）**，超出直接拒绝；填 0 表示不限制。
 
 ---
 

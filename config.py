@@ -114,6 +114,7 @@ class PluginConfig(ConfigNode):
     random_ban_time: str
     llm_get_msg_count: int
     official_special_admins: bool
+    download_max_mb: int
 
     _db_version = 3
     _plugin_name: str = "astrbot_plugin_groupadmin"

@@ -944,6 +944,7 @@ class QQAdminPlugin(Star):
         下载群文件到本地并以文件形式发回群聊，供用户获取群文件内容。
         用法：先用 llm_view_group_file 看清文件名（可取序号），再把文件名或「文件夹名/文件名」传给本工具。
         文件会直接作为群文件消息发出，不会暴露下载直链。
+        权限：仅超级管理员与特殊权限名单成员可调用；群主/管理员请改用 llm_view_group_file 查看。
         Args:
             path(string): 群文件的文件名、文件夹名/文件名，或 llm_view_group_file 返回的序号（如 "3" 或 "2/1"）。
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True。
@@ -954,13 +955,20 @@ class QQAdminPlugin(Star):
             ):
                 yield error
                 return
+            # 二次收紧：群文件下载会占用 bot 宿主磁盘与带宽，只放行超管与名单成员，
+            # 群主/管理员不在这条通道上（可用 llm_view_group_file 查看，但不下载）
+            if not await perm_manager.is_user_strict_admin(
+                event, event.get_sender_id()
+            ):
+                yield "群文件下载仅限超级管理员与特殊权限名单成员"
+                return
 
         if not str(path or "").strip():
             yield "请提供要下载的群文件名，或用 llm_view_group_file 先查看序号"
             return
 
         local_path, file_info, err = await self.file.download_group_file(
-            event, str(path).strip()
+            event, str(path).strip(), max_mb=self.cfg.download_max_mb
         )
         if not local_path or not file_info:
             yield f"下载失败：{err}"

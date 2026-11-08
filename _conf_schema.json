@@ -123,5 +123,16 @@
       "step": 1
     },
     "default": 10
+  },
+  "download_max_mb": {
+    "description": "群文件下载上限（MB）",
+    "hint": "LLM 下载群文件时的体积上限，超过则拒绝，避免把大文件拖到 bot 宿主。填 0 表示不限制（不建议）",
+    "type": "int",
+    "slider": {
+      "min": 0,
+      "max": 2048,
+      "step": 10
+    },
+    "default": 100
   }
 }

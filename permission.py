@@ -161,6 +161,18 @@ class PermissionManager:
             or await self.is_user_group_admin(event, uid)
         )
 
+    async def is_user_strict_admin(
+        self, event: AiocqhttpMessageEvent, uid: str | int
+    ) -> bool:
+        """超管 ∪ 特殊权限名单（不含群主/管理员）。
+
+        给高成本或高风险的工具用：比如群文件下载会占用 bot 宿主磁盘与带宽，
+        不应让每个群管理员都能随意触发。
+        """
+        return await self.is_user_superuser(event, uid) or await self.is_user_special_admin(
+            event, uid
+        )
+
     # ====================== check_at ======================
 
     async def check_at_protection(self, event: AiocqhttpMessageEvent) -> str | None:

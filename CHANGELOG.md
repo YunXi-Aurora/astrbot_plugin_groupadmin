@@ -6,8 +6,9 @@
 
 - **新增 LLM 工具 `llm_download_group_file`**（仅 LLM 工具，不提供群命令）：把群文件下载到本地并作为文件消息发回群聊。
   - 参数 `path` 支持文件名、`文件夹名/文件名`，或 `llm_view_group_file` 返回的序号（`"3"` / `"2/1"`）
+  - 权限收紧为「超管 ∪ 特殊权限名单」，**群主/管理员不在放行范围**（只能 `llm_view_group_file` 看清单，不能下载）
   - 只发包，不暴露下载直链
-  - 默认 100 MB 体积上限，超限直接拒绝，避免把大文件拖到宿主
+  - 体积上限可配（`download_max_mb`，默认 100 MB），超限直接拒绝，避免把大文件拖到宿主
   - `core/file_handle.py` 新增 `_locate_file` / `_get_group_file_url` / `download_group_file`；其中 `_locate_file` 复用了原先散在 `view_group_file` 里的定位逻辑
 
 ### 细节
@@ -17,6 +18,7 @@
 - 文件名里的路径分隔符会被替换成 `_`，防止写出缓存目录
 - 下载结果为 0 字节时自动清理并报错，不静默返回空文件
 - `core/file_handle.py` 补 `from pathlib import Path` 导入（新方法用了 `Path | None` 注解）
+- `permission.py` 新增 `is_user_strict_admin()`（超管 ∪ 名单，不含群主/管理员），供高成本工具复用
 
 ## 1.0.7 · 2026-11-03
 
