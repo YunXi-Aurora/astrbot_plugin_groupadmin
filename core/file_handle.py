@@ -1,6 +1,7 @@
 import os
 import re
 from datetime import datetime
+from pathlib import Path
 
 from astrbot.api import logger
 from astrbot.core.message.components import File, Image, Reply, Video
@@ -308,6 +309,137 @@ class FileHandle:
             else:
                 return f"群文件夹【{folder_name}】不存在"
         return "未找到要删除的群文件或文件夹"
+
+    async def _locate_file(
+        self, event: AiocqhttpMessageEvent, path: str
+    ) -> tuple[dict | None, str]:
+        """
+        按 path 定位群文件对象，返回 (file_dict, 错误说明)。
+        file_dict 为 None 时错误说明可用。
+        path 支持：文件名、文件夹名/文件名、序号、序号/序号。
+        """
+        folder_name, file_name = await self._parse_path(event, str(path))
+        group_id = int(event.get_group_id())
+
+        if folder_name and file_name:
+            _, file = await self._get_file_in_folder(event, folder_name, file_name)
+            if not file:
+                return None, f"未能找到群文件：📄{file_name}"
+            return file, ""
+
+        if file_name:
+            response = await event.bot.get_group_root_files(group_id=group_id)
+            file = next(
+                (f for f in response["files"] if file_name == f["file_name"]),
+                None,
+            )
+            if not file:
+                return None, f"未能找到群文件：📄{file_name}"
+            return file, ""
+
+        if folder_name:
+            # 可能是根目录下的单个文件
+            response = await event.bot.get_group_root_files(group_id=group_id)
+            file = next(
+                (f for f in response["files"] if folder_name == f["file_name"]),
+                None,
+            )
+            if file:
+                return file, ""
+            return None, f"【{folder_name}】是文件夹或不存在，请带上文件名，如：文件夹名/文件名"
+
+        return None, "请指定要下载的文件"
+
+    async def _get_group_file_url(
+        self, event: AiocqhttpMessageEvent, file: dict
+    ) -> tuple[str | None, str]:
+        """
+        取群文件下载直链，返回 (url, 错误说明)。
+
+        NapCat 的 get_group_file_url 需要 file_id 与 busid：
+        - file_id 缺失时无法取链，直接报错；
+        - busid 缺省按 102 传（NapCat 默认个人群文件夹）。
+        """
+        file_id = file.get("file_id")
+        if not file_id:
+            return None, "该文件记录缺少 file_id，无法获取下载链接"
+        payload = {
+            "group_id": int(event.get_group_id()),
+            "file_id": str(file_id),
+        }
+        # busid 部分实现必填，缺失时补默认值
+        if busid := file.get("busid"):
+            payload["busid"] = int(busid)
+        else:
+            payload["busid"] = 102
+
+        try:
+            resp = await event.bot.call_action("get_group_file_url", **payload)
+        except Exception as e:
+            logger.error(f"获取群文件链接失败：{e!r}")
+            return None, f"获取下载链接失败：{e}"
+
+        if not isinstance(resp, dict):
+            return None, "协议端返回的下载链接格式异常"
+        # 兼容 {"url": ...} 与 {"data": {"url": ...}} 两种包裹
+        url = resp.get("url") or (resp.get("data") or {}).get("url")
+        if not url:
+            return None, "协议端未返回下载链接（可能该文件已过期或被删除）"
+        return str(url), ""
+
+    async def download_group_file(
+        self,
+        event: AiocqhttpMessageEvent,
+        path: str,
+        max_mb: int = 100,
+    ) -> tuple[Path | None, dict | None, str]:
+        """
+        下载群文件到本地缓存目录，返回 (本地路径, 文件对象, 错误说明)。
+
+        只负责落盘，不负责发送；发送由调用方决定用群聊还是私聊。
+        """
+        file, err = await self._locate_file(event, path)
+        if not file:
+            return None, None, err
+
+        # 体积保护：避免把超大文件拖到手机/服务器上
+        size = self._parse_size(file)
+        if size is not None and max_mb > 0 and size > max_mb * 1024 * 1024:
+            return (
+                None,
+                file,
+                f"文件大小 {self._human_size(size)} 超过下载上限 {max_mb} MB，已拒绝",
+            )
+
+        url, err = await self._get_group_file_url(event, file)
+        if not url:
+            return None, file, err
+
+        raw_name = str(file.get("file_name") or "群文件")
+        # 去掉路径分隔符，防止写到目录外
+        safe_name = re.sub(r'[\\/:*?"<>|]', "_", raw_name).strip() or "群文件"
+        save_path = self.data_dir / safe_name
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if os.path.exists(save_path):
+            try:
+                save_path.unlink()
+            except OSError:
+                pass
+
+        downloaded = await download_file(url, save_path)
+        if not downloaded or not os.path.exists(save_path):
+            return None, file, "下载失败（链接可能已过期，或网络不可达）"
+
+        actual = os.path.getsize(save_path)
+        if actual == 0:
+            try:
+                save_path.unlink()
+            except OSError:
+                pass
+            return None, file, "下载到的文件为 0 字节，已清理"
+
+        return save_path, file, ""
 
     async def view_group_file(self, event: AiocqhttpMessageEvent, path) -> str:
         """查看群文件/目录，path 可以是 文件夹名、文件名 或 文件夹名/文件名"""

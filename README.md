@@ -179,12 +179,12 @@
 
 ## LLM 工具
 
-共 **21 个** `@filter.llm_tool()`。被调用时强制过 `perm_manager` 四级校验——模型无法用 `need_auth=False` 绕过。
+共 **22 个** `@filter.llm_tool()`。被调用时强制过 `perm_manager` 四级校验——模型无法用 `need_auth=False` 绕过。
 
 | 类别 | 工具 |
 |---|---|
 | 群管操作 | `llm_set_group_ban`（`user_id` 可填 `1,2,3` 批量 + `durations` 填 `1h,2h,3h` 逐人时长、`instant_unbans` 填 `true,false` 逐人真假，含 `instant_unban` 娱乐式参数）、`llm_set_group_card`、`llm_set_group_special_title`、`llm_set_group_whole_ban`、`llm_set_group_kick`、`llm_set_group_block`、`llm_set_group_name`、`llm_set_group_portrait` |
-| 精华 / 公告 / 文件 | `llm_set_essence_msg`、`llm_get_essence_msg_list`、`llm_send_group_notice`、`llm_get_group_notice`、`llm_upload_group_file`、`llm_delete_group_file`、`llm_view_group_file` |
+| 精华 / 公告 / 文件 | `llm_set_essence_msg`、`llm_get_essence_msg_list`、`llm_send_group_notice`、`llm_get_group_notice`、`llm_upload_group_file`、`llm_delete_group_file`、`llm_view_group_file`、`llm_download_group_file` |
 | 撤回 | `llm_delete_msg`、`llm_delete_msg_batch`、`llm_get_recent_messages` |
 | 名单 | `llm_get_special_admins` |
 | 官方平台 | `qqadmin_official_query`、`qqadmin_official_approval` |

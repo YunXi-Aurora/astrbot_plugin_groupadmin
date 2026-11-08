@@ -1,9 +1,11 @@
+import os
 import re
-
 from astrbot.api import logger
 from astrbot.api.event import filter
 from astrbot.api.star import Context, Star
 from astrbot.core import AstrBotConfig
+from astrbot.core.message.components import File
+from astrbot.core.message.message_event_result import MessageChain
 from astrbot.core.platform.sources.aiocqhttp.aiocqhttp_message_event import (
     AiocqhttpMessageEvent,
 )
@@ -930,6 +932,55 @@ class QQAdminPlugin(Star):
                 return
         if result := await self.file.view_group_file(event, path):
             yield result
+
+    @filter.llm_tool()
+    async def llm_download_group_file(
+        self,
+        event: AiocqhttpMessageEvent,
+        path: str,
+        need_auth: bool = True,
+    ):
+        """
+        下载群文件到本地并以文件形式发回群聊，供用户获取群文件内容。
+        用法：先用 llm_view_group_file 看清文件名（可取序号），再把文件名或「文件夹名/文件名」传给本工具。
+        文件会直接作为群文件消息发出，不会暴露下载直链。
+        Args:
+            path(string): 群文件的文件名、文件夹名/文件名，或 llm_view_group_file 返回的序号（如 "3" 或 "2/1"）。
+            need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True。
+        """
+        if need_auth:
+            if error := await perm_manager.llm_perm_block(
+                event, bot_perm=PermLevel.BOT_ADMIN
+            ):
+                yield error
+                return
+
+        if not str(path or "").strip():
+            yield "请提供要下载的群文件名，或用 llm_view_group_file 先查看序号"
+            return
+
+        local_path, file_info, err = await self.file.download_group_file(
+            event, str(path).strip()
+        )
+        if not local_path or not file_info:
+            yield f"下载失败：{err}"
+            return
+
+        size_desc = self.file._human_size(os.path.getsize(local_path))
+        try:
+            await event.send(
+                MessageChain(
+                    chain=[
+                        File(name=local_path.name, file=str(local_path)),
+                    ]
+                )
+            )
+        except Exception as e:
+            logger.error(f"群文件发送失败：{e!r}")
+            yield f"已下载到本地（{size_desc}），但发送失败：{e}"
+            return
+
+        yield f"已发送群文件：{local_path.name}（{size_desc}）"
 
     @filter.llm_tool()
     async def llm_delete_msg(
