@@ -1,5 +1,18 @@
 # 更新日志
 
+## 1.0.12 · 2026-11-20
+
+### 修复（LLM 工具路径两个叠加 bug）
+
+- **纯文字群公告从未真正发布**：`NoticeHandle.send_group_notice` 的 `_send_group_notice` 调用原来缩进在 `if image_url` 分支内部，不带图片时发布 API 根本不会被调用，函数却照样返回"群公告已发布"。LLM 调用 `llm_send_group_notice` 后收到假成功结果——用户在群里看不到公告，追问时 LLM 依据工具返回值如实回答"已发布"，造成"假成功"假象。现在发布调用移到分支外，纯文字与带图路径都会真正调用 API。
+- **LLM 工具执行成功后 bot 没有回复**：`send_group_notice` / `set_group_ban` 底层无条件 `event.stop_event()`。AstrBot 框架在 agent 循环中检查 `is_stopped()`（`astr_agent_run_util._should_stop_agent`），工具内停止事件会让 agent 直接中止且不产出最终回复——用户看到的是"调用了工具但机器人沉默"。去掉这两处 `stop_event()`，命令路径仍由命令 handler 收尾时正常停止事件。
+- **API 失败现在返回真实错误**：`_send_group_notice` 抛异常时不再让异常穿透（原样穿透会被框架包成 `error: ...` 且 LLM 无回复），改为捕获后返回 `群公告发布失败：<原因>`，LLM 能向用户如实转述失败原因。
+- **同款隐患一并修复**：`NormalHandle.set_group_ban` 尾部的 `stop_event()` 同样影响 `llm_set_group_ban`、`llm_recall_and_ban`（禁言执行成功但 bot 不吭声），一并移除。
+
+### 测试
+
+- 新增 `tests/test_llm_notice_ban.py`（6 个用例）：纯文字公告真正调用发布 API、调用参数正确（无图时不传 `image`）、API 失败返回真实错误、成功后不 `stop_event`、空内容拒绝、`set_group_ban` 不 `stop_event`。source-only 模式可在无 AstrBot/aiohttp/aiosqlite 环境运行。
+
 ## 1.0.11 · 2026-11-08
 
 ### 修复（行为修正）

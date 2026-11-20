@@ -142,7 +142,8 @@ class NormalHandle:
             except Exception as e:
                 logger.error(f"禁言失败 群{event.get_group_id()} 用户{tid}: {e!r}")
                 results.append(f"用户[{tid}]禁言失败")
-        event.stop_event()
+        # 不在这里 stop_event：此方法被 LLM 工具复用，工具内停止事件会让框架
+        # 中止 agent，禁言成功却不产生最终回复。命令路径由 handler 收尾时停止。
         return "\n".join(results)
 
     async def set_group_whole_ban(self, event: AiocqhttpMessageEvent, enable: bool):

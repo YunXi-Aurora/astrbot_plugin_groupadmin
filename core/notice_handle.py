@@ -42,12 +42,17 @@ class NoticeHandle:
             if not image_path:
                 return "图片获取失败"
 
-            await event.bot._send_group_notice(
-                group_id=int(event.get_group_id()),
-                content=content,
-                image=str(image_path),
-            )
-        event.stop_event()
+        # 发布调用必须覆盖纯文字路径：放在 if 外，否则无图时 API 从未被调用
+        # 却返回"已发布"（此前 LLM 路径因此假成功、群公告实际没发出去）。
+        kwargs = {"group_id": int(gid), "content": content}
+        if image_path:
+            kwargs["image"] = str(image_path)
+        try:
+            await event.bot._send_group_notice(**kwargs)
+        except Exception as e:
+            logger.error(f"群公告发布失败 群{gid}: {e!r}")
+            return f"群公告发布失败：{e}"
+
         return "群公告已发布"
 
     async def get_group_notice(self, event: AiocqhttpMessageEvent):
