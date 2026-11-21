@@ -7,8 +7,8 @@
 <p>
   <img alt="AstrBot" src="https://img.shields.io/badge/AstrBot-%E2%89%A5%204.24.2-12B7F5?style=flat-square">
   <img alt="Platform" src="https://img.shields.io/badge/platform-OneBot%20%7C%20QQ%20%E5%AE%98%E6%96%B9-2E3E55?style=flat-square">
-  <img alt="Commands" src="https://img.shields.io/badge/commands-44-3ECF8E?style=flat-square">
-  <img alt="LLM tools" src="https://img.shields.io/badge/LLM%20tools-21-8B5CF6?style=flat-square">
+  <img alt="Commands" src="https://img.shields.io/badge/commands-45-3ECF8E?style=flat-square">
+  <img alt="LLM tools" src="https://img.shields.io/badge/LLM%20tools-23-8B5CF6?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square">
 </p>
 
@@ -54,7 +54,7 @@
 </table>
 
 <p align="center">
-  <img src="./assets/readme/permission.svg" width="100%" alt="四级权限：超管全部 44 条 + 名单管理；特殊权限名单成员本群全部群管指令；QQ 群主/管理员基础管理 + 查询；普通成员仅 3 项查询">
+  <img src="./assets/readme/permission.svg" width="100%" alt="四级权限：超管全部 45 条 + 名单管理；特殊权限名单成员本群全部群管指令；QQ 群主/管理员基础管理 + 查询；普通成员仅 3 项查询">
 </p>
 
 | 级别 | 谁 | 能做什么 |
@@ -88,7 +88,8 @@
 | `改名 <新昵称> @用户` | 修改群名片 | ✅ |
 | `改头衔 <头衔> @用户` | 设置群头衔（需群主） | ✅ |
 | `申请头衔 <头衔>` | 为自己申请头衔 | ❌ |
-| `踢了 @用户` | 移出群聊 | ✅ |
+| `踢了 @用户`（或引用消息） | 移出群聊；引用时被引用消息自动作为踢出原因并留档 | ✅ |
+| `踢出原因 @用户` | 查看引用踢出的原因记录（图片，含聊天记录补充） | ✅ |
 | `群拉黑 @用户` | 踢出并拉黑 | ✅ |
 | `上管 @用户` / `下管 @用户` | 设置 / 取消管理员（需群主） | ❌ |
 | `设精` / `移精`（引用消息） | 群精华操作 | ✅ |

@@ -43,7 +43,8 @@ HELP_ONE = """QQ群管（重构版） · OneBot
 【禁言】/禁言 @某人 1h30m   /禁言 QQ号1,QQ号2 1h,2h   /娱乐式禁言 @某人 30m 玩
         /解禁 @某人   /全禁 开|关
 【管理】/改名 新昵称 @某人   /改头衔 头衔 @某人   /申请头衔 头衔
-        /踢了 @某人   /群拉黑 @某人   /上管 @某人   /下管 @某人
+        /踢了 @某人（或引用消息）   /踢出原因 @某人（图片）
+        /群拉黑 @某人   /上管 @某人   /下管 @某人
         /设精（引用） /移精（引用）   /撤回（引用） /撤回 @某人 数量
         /发布群公告 内容   /设置群名 新群名   /设置群头像（引用图片）
         /上传群文件   /删除群文件
@@ -351,9 +352,18 @@ class QQAdminPlugin(Star):
     @filter.command("踢了")
     @require_admin()
     async def set_group_kick(self, event: AiocqhttpMessageEvent):
-        """踢了@群友"""
+        """踢了@群友（或引用消息踢出，被引用消息作为踢出原因）"""
         if result := await self.normal.set_group_kick(event):
             yield event.plain_result(result)
+
+    @filter.command("踢出原因")
+    @require_admin()
+    async def get_kick_reason(self, event: AiocqhttpMessageEvent):
+        """踢出原因 @群友，查看引用踢出记录（图片）"""
+        target_id = (get_ats(event) or [""])[0]
+        text = await self.normal.get_kick_reason_text(event, target_id=target_id)
+        url = await self.text_to_image(text)
+        await event.send(event.image_result(url))
 
     @filter.command("群拉黑")
     @require_admin()
