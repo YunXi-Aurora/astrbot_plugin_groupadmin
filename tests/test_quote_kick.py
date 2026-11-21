@@ -126,7 +126,7 @@ normal_handle = _load("normal_handle", PLUGIN_ROOT / "core" / "normal_handle.py"
 class FakeCfg:
     def __init__(self, **kw):
         self.quote_kick_enabled = True
-        self.quote_kick_context_count = 10
+        self.quote_kick_context_count = 0  # 默认不自动拉取，与 _conf_schema 一致
         self.quote_kick_records_limit = 20
         for k, v in kw.items():
             setattr(self, k, v)
@@ -199,7 +199,7 @@ class TestQuoteKick(unittest.TestCase):
 
     def test_quote_kick_kicks_replyer_with_reason_and_record(self):
         """引用踢出：踢被引用者，原因=被引用消息，记录含聊天记录补充"""
-        handle = self._handle()
+        handle = self._handle(FakeCfg(quote_kick_context_count=10))
         event = make_event([Reply(sender_id=12345, message_str="发广告刷屏")])
         bot = FakeBot(
             history=[
@@ -252,7 +252,7 @@ class TestQuoteKick(unittest.TestCase):
         self.assertNotIn(("67890", "kick_records"), self.db.store)
 
     def test_quote_kick_context_count_zero_skips_history_fetch(self):
-        """quote_kick_context_count=0 时不拉取聊天记录，留档 context 为空"""
+        """quote_kick_context_count=0 时不拉取聊天记录，留档 context 为空（默认行为）"""
         handle = self._handle(FakeCfg(quote_kick_context_count=0))
         event = make_event([Reply(sender_id=12345, message_str="发广告刷屏")])
         bot = FakeBot()
@@ -296,7 +296,7 @@ class TestQuoteKick(unittest.TestCase):
 
     def test_history_failure_propagates_and_no_kick(self):
         """聊天记录补充读取失败：异常如实穿透，且先读后踢保证没有人被踢出"""
-        handle = self._handle()
+        handle = self._handle(FakeCfg(quote_kick_context_count=10))
         event = make_event([Reply(sender_id=12345, message_str="刷屏")])
         bot = FakeBot(history_error=RuntimeError("历史消息接口返回 500"))
         event.bot = bot
@@ -348,6 +348,57 @@ class TestQuoteKick(unittest.TestCase):
         self.db.store.clear()
         empty = asyncio.run(handle.get_kick_reason_text(event))
         self.assertEqual(empty, "本群暂无引用踢出记录")
+
+    def test_append_kick_note_appends_to_latest_record_with_signature(self):
+        """手动补充：追加到该目标最近一条记录，带署名；再次补充为追加而非覆盖"""
+        handle = self._handle()
+        self.db.store[("67890", "kick_records")] = [
+            {
+                "time": "2026-11-21 19:00:00",
+                "operator_id": "10001",
+                "operator_name": "管理员A",
+                "target_id": "12345",
+                "target_name": "捣蛋鬼",
+                "reason": "发广告刷屏",
+                "context": [],
+            }
+        ]
+        # 补充人不是踢出人（另一个管理员），且在私聊语境下用参数群号写库
+        event = make_event([], sender_id="20002")
+        event.bot = FakeBot()
+
+        result = asyncio.run(
+            handle.append_kick_note(event, "67890", "12345", "他之前也发过同类广告")
+        )
+        self.assertIn("已补充【捣蛋鬼(12345)】", result)
+
+        records = self.db.store[("67890", "kick_records")]
+        note = records[0]["manual_notes"][0]
+        self.assertEqual(note["operator_id"], "20002")
+        self.assertEqual(note["text"], "他之前也发过同类广告")
+        self.assertIn("2026-", note["time"])
+
+        # 第二次补充：追加不覆盖
+        asyncio.run(handle.append_kick_note(event, "67890", "12345", "屡教不改"))
+        self.assertEqual(len(self.db.store[("67890", "kick_records")][0]["manual_notes"]), 2)
+
+        # 查询文本包含带署名的补充
+        text = asyncio.run(handle.get_kick_reason_text(make_event([]), target_id="12345"))
+        self.assertIn("管理员补充 by 成员20002(20002)", text)
+        self.assertIn("他之前也发过同类广告", text)
+
+    def test_append_kick_note_no_record_returns_truthfully(self):
+        """无记录时如实返回，不写入任何内容"""
+        handle = self._handle()
+        event = make_event([])
+
+        result = asyncio.run(handle.append_kick_note(event, "67890", "12345", "补充"))
+        self.assertEqual(result, "群67890暂无引用踢出记录")
+        self.assertNotIn(("67890", "kick_records"), self.db.store)
+
+        # 群无任何记录
+        result = asyncio.run(handle.append_kick_note(event, "99999", "12345", "补充"))
+        self.assertEqual(result, "群99999暂无引用踢出记录")
 
 
 if __name__ == "__main__":

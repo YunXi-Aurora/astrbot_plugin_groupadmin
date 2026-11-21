@@ -21,6 +21,8 @@ from .data import QQAdminDB
 from .group_info_cache import QQGroupInfoCache
 from .permission import (
     PermLevel,
+    is_special_admin,
+    is_superuser,
     perm_manager,
     require_superuser,
     require_admin,
@@ -44,6 +46,7 @@ HELP_ONE = """QQ群管（重构版） · OneBot
         /解禁 @某人   /全禁 开|关
 【管理】/改名 新昵称 @某人   /改头衔 头衔 @某人   /申请头衔 头衔
         /踢了 @某人（或引用消息）   /踢出原因 @某人（图片）
+        /补充踢出原因 群号 QQ号 内容（私聊，给踢出记录补上下文）
         /群拉黑 @某人   /上管 @某人   /下管 @某人
         /设精（引用） /移精（引用）   /撤回（引用） /撤回 @某人 数量
         /发布群公告 内容   /设置群名 新群名   /设置群头像（引用图片）
@@ -364,6 +367,41 @@ class QQAdminPlugin(Star):
         text = await self.normal.get_kick_reason_text(event, target_id=target_id)
         url = await self.text_to_image(text)
         await event.send(event.image_result(url))
+
+    @filter.command("补充踢出原因")
+    async def append_kick_note(self, event: AiocqhttpMessageEvent):
+        """（私聊）补充踢出原因 群号 QQ号 补充内容"""
+        if is_official(event):
+            yield event.plain_result("QQ 官方机器人平台未提供该操作。")
+            return
+        if not event.is_private_chat():
+            yield event.plain_result("请在私聊中补充，避免补充内容被群成员看到")
+            return
+        # 参数：群号 QQ号 补充内容（剩余全部）
+        parts = event.message_str.split(maxsplit=3)
+        if len(parts) < 4 or not parts[1].isdigit() or not parts[2].isdigit():
+            yield event.plain_result("用法：补充踢出原因 <群号> <QQ号> <补充内容>")
+            return
+        group_id, target_id, note = parts[1], parts[2], parts[3].strip()
+        # 私聊下用参数群号鉴权：超管 ∪ 该群特殊名单 ∪ 该群群主/管理员
+        sender_id = event.get_sender_id()
+        authorized = is_superuser(self.cfg, sender_id) or await is_special_admin(
+            self.db, group_id, sender_id
+        )
+        if not authorized:
+            try:
+                info = await event.bot.get_group_member_info(
+                    group_id=int(group_id), user_id=int(sender_id), no_cache=True
+                )
+                authorized = info.get("role") in {"owner", "admin"}
+            except Exception as e:
+                yield event.plain_result(f"群身份校验失败：{e}")
+                return
+        if not authorized:
+            yield event.plain_result(f"你在群{group_id}没有管理员权限")
+            return
+        if result := await self.normal.append_kick_note(event, group_id, target_id, note):
+            yield event.plain_result(result)
 
     @filter.command("群拉黑")
     @require_admin()

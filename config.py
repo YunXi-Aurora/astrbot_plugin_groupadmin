@@ -116,7 +116,7 @@ class PluginConfig(ConfigNode):
     official_special_admins: bool
     download_max_mb: int
     quote_kick_enabled: bool = True
-    quote_kick_context_count: int = 10
+    quote_kick_context_count: int = 0
     quote_kick_records_limit: int = 20
 
     _db_version = 3

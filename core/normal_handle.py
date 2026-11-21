@@ -300,6 +300,40 @@ class NormalHandle:
         )
         await self.db.set(gid, "kick_records", records[-self.cfg.quote_kick_records_limit :])
 
+    async def append_kick_note(
+        self,
+        event: AiocqhttpMessageEvent,
+        group_id: str,
+        target_id: str,
+        note: str,
+    ) -> str:
+        """私聊场景下为最近一条引用踢出记录追加管理员手动补充（带署名留痕）。"""
+        gid = str(group_id)
+        records = list(await self.db.get(gid, "kick_records", []))
+        if not records:
+            return f"群{gid}暂无引用踢出记录"
+        indexes = [
+            i for i, r in enumerate(records) if r.get("target_id") == str(target_id)
+        ]
+        if not indexes:
+            return f"群{gid}暂无【{target_id}】的引用踢出记录"
+        operator_id = str(event.get_sender_id())
+        operator_name = await get_nickname(event, user_id=operator_id)
+        record = records[indexes[-1]]
+        record.setdefault("manual_notes", []).append(
+            {
+                "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "operator_id": operator_id,
+                "operator_name": operator_name,
+                "text": note,
+            }
+        )
+        await self.db.set(gid, "kick_records", records)
+        return (
+            f"已补充【{record['target_name']}({target_id})】的踢出原因记录："
+            f"\n{note}"
+        )
+
     async def get_kick_reason_text(
         self, event: AiocqhttpMessageEvent, target_id: str = ""
     ) -> str:
@@ -322,6 +356,11 @@ class NormalHandle:
             )
             if r.get("context"):
                 lines.append("聊天记录补充：\n" + "\n".join(r["context"]))
+            for mn in r.get("manual_notes", []):
+                lines.append(
+                    f"管理员补充 by {mn['operator_name']}({mn['operator_id']}) "
+                    f"{mn['time']}：\n{mn['text']}"
+                )
             lines.append("─" * 20)
         return "\n".join(lines)
 
