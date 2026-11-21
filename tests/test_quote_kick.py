@@ -123,6 +123,15 @@ from astrbot.core.message.components import (  # noqa: E402
 normal_handle = _load("normal_handle", PLUGIN_ROOT / "core" / "normal_handle.py")
 
 
+class FakeCfg:
+    def __init__(self, **kw):
+        self.quote_kick_enabled = True
+        self.quote_kick_context_count = 10
+        self.quote_kick_records_limit = 20
+        for k, v in kw.items():
+            setattr(self, k, v)
+
+
 class FakeDB:
     def __init__(self):
         self.store = {}
@@ -185,8 +194,8 @@ class TestQuoteKick(unittest.TestCase):
     def setUp(self):
         self.db = FakeDB()
 
-    def _handle(self):
-        return normal_handle.NormalHandle(None, self.db)
+    def _handle(self, cfg=None):
+        return normal_handle.NormalHandle(cfg or FakeCfg(), self.db)
 
     def test_quote_kick_kicks_replyer_with_reason_and_record(self):
         """引用踢出：踢被引用者，原因=被引用消息，记录含聊天记录补充"""
@@ -220,13 +229,41 @@ class TestQuoteKick(unittest.TestCase):
         self.assertEqual(
             record["context"], ["捣蛋鬼: 买号加我", "捣蛋鬼: 发广告刷屏"]
         )
-        # get_group_msg_history payload 与 recall 既有调用一致
+        # get_group_msg_history payload 与 recall 既有调用一致（窗口 = max(count×5, 50)）
         action, payload = bot.history_calls[0]
         self.assertEqual(action, "get_group_msg_history")
         self.assertEqual(
             payload,
             {"group_id": 67890, "message_seq": 0, "count": 50, "reverseOrder": True},
         )
+
+    def test_quote_kick_disabled_keeps_old_behavior(self):
+        """quote_kick_enabled=False 时维持旧行为：提示未指定，不踢人不留档"""
+        handle = self._handle(FakeCfg(quote_kick_enabled=False))
+        event = make_event([Reply(sender_id=12345, message_str="发广告刷屏")])
+        bot = FakeBot()
+        event.bot = bot
+
+        result = asyncio.run(handle.set_group_kick(event))
+
+        self.assertEqual(result, "未指定要踢出的用户")
+        self.assertEqual(bot.kick_calls, [])
+        self.assertEqual(bot.history_calls, [])
+        self.assertNotIn(("67890", "kick_records"), self.db.store)
+
+    def test_quote_kick_context_count_zero_skips_history_fetch(self):
+        """quote_kick_context_count=0 时不拉取聊天记录，留档 context 为空"""
+        handle = self._handle(FakeCfg(quote_kick_context_count=0))
+        event = make_event([Reply(sender_id=12345, message_str="发广告刷屏")])
+        bot = FakeBot()
+        event.bot = bot
+
+        result = asyncio.run(handle.set_group_kick(event))
+
+        self.assertIn("踢出原因：发广告刷屏", result)
+        self.assertEqual(bot.history_calls, [])
+        record = self.db.store[("67890", "kick_records")][0]
+        self.assertEqual(record["context"], [])
 
     def test_quote_without_replyer_id_falls_back_to_no_target(self):
         """引用消息拿不到被引用者 id（sender_id=0）时按未指定处理，不踢人"""

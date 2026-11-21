@@ -205,7 +205,7 @@ class NormalHandle:
     ):
         tids = [target_id] if target_id else get_ats(event)
         # 引用踢出：未@任何用户但引用了消息时，被引用者作为踢出目标
-        if not tids:
+        if not tids and self.cfg.quote_kick_enabled:
             replyer_id = get_replyer_id(event)
             if replyer_id and replyer_id != "0":
                 return await self.kick_by_reply(event, replyer_id)
@@ -228,7 +228,12 @@ class NormalHandle:
         顺序：先拉聊天记录补充与昵称，再踢出，最后落库——读取失败时不会
         出现“人已踢、记录缺失”的中间态。"""
         reason = get_reply_message_str(event) or "（引用消息无文本内容）"
-        context = await self._get_target_recent_texts(event, target_id)
+        if self.cfg.quote_kick_context_count > 0:
+            context = await self._get_target_recent_texts(
+                event, target_id, count=self.cfg.quote_kick_context_count
+            )
+        else:
+            context = []
         target_name = await get_nickname(event, user_id=target_id)
         await event.bot.set_group_kick(
             group_id=int(event.get_group_id()),
@@ -244,13 +249,15 @@ class NormalHandle:
         """拉取被踢者最近的文本消息，作为踢出原因的聊天记录补充。
 
         get_group_msg_history 为 NapCat/go-cqhttp 扩展接口，payload 与
-        core/recall_handel.py 的既有调用保持一致。
+        core/recall_handel.py 的既有调用保持一致。拉取窗口为 count 的 5 倍
+        （至少 50 条），避免被踢者的消息被其他人的消息稀释。
         """
+        fetch = max(count * 5, 50)
         result: dict = await event.bot.api.call_action(
             "get_group_msg_history",
             group_id=int(event.get_group_id()),
             message_seq=0,
-            count=50,
+            count=fetch,
             reverseOrder=True,
         )
         messages = list(reversed(result.get("messages", [])))
@@ -291,7 +298,7 @@ class NormalHandle:
                 "context": context,
             }
         )
-        await self.db.set(gid, "kick_records", records[-20:])
+        await self.db.set(gid, "kick_records", records[-self.cfg.quote_kick_records_limit :])
 
     async def get_kick_reason_text(
         self, event: AiocqhttpMessageEvent, target_id: str = ""
