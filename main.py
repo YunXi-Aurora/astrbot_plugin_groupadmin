@@ -770,12 +770,12 @@ class QQAdminPlugin(Star):
     async def llm_set_group_kick(
         self,
         event: AiocqhttpMessageEvent,
-        target_id: str,
+        target_id: str = "",
     ):
         """
-        将指定用户踢出当前群聊(危险操作，本工具已强制鉴权)。
+        将指定用户踢出当前群聊；省略 target_id 时可引用消息踢出被引用者。
         Args:
-            target_id(string): OneBot用户QQ号或官方当前群的成员OpenID。
+            target_id(string): 可选，OneBot用户QQ号或官方当前群的成员OpenID；省略时从引用消息获取目标。
         """
         if error := await perm_manager.llm_perm_block(
             event, bot_perm=PermLevel.BOT_ADMIN

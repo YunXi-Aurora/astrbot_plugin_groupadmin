@@ -142,6 +142,12 @@ class FakeDB:
     async def set(self, gid, field, value):
         self.store[(gid, field)] = value
 
+    async def get_auxiliary(self, gid, field, default=None):
+        return self.store.get((gid, field), default)
+
+    async def set_auxiliary(self, gid, field, value):
+        self.store[(gid, field)] = value
+
 
 class FakeBot:
     def __init__(self, history=None, kick_error=None, history_error=None):

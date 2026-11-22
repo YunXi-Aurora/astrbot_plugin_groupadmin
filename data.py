@@ -44,6 +44,7 @@ class QQAdminDB:
 
         self._conn = None
         self._cache = {}
+        self._auxiliary_cache = {}
         self._initialized = False
         self._init_lock = asyncio.Lock()
 
@@ -64,6 +65,14 @@ class QQAdminDB:
                     data TEXT NOT NULL
                 );
             """)
+            await self._conn.execute("""
+                CREATE TABLE IF NOT EXISTS group_auxiliary (
+                    group_id TEXT NOT NULL,
+                    field TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    PRIMARY KEY (group_id, field)
+                );
+            """)
             await self._conn.commit()
 
             # 加载缓存
@@ -74,8 +83,71 @@ class QQAdminDB:
                     except Exception:
                         logger.exception("解析 group 数据失败: %s", row["group_id"])
 
+            await self._migrate_auxiliary_fields()
             self._initialized = True
             logger.info("QQAdminDB initialized (%d groups)", len(self._cache))
+
+    async def _migrate_auxiliary_fields(self):
+        """Move historical auxiliary values out of group configuration JSON."""
+        for gid, data in list(self._cache.items()):
+            if "kick_records" not in data:
+                continue
+            records = data.pop("kick_records")
+            await self._conn.execute(
+                """
+                INSERT INTO group_auxiliary(group_id, field, data)
+                VALUES (?, 'kick_records', ?)
+                ON CONFLICT(group_id, field) DO NOTHING;
+                """,
+                (gid, json.dumps(records, ensure_ascii=False)),
+            )
+            async with self._conn.execute(
+                "SELECT data FROM group_auxiliary WHERE group_id = ? AND field = 'kick_records'",
+                (gid,),
+            ) as cur:
+                row = await cur.fetchone()
+            self._auxiliary_cache[(gid, "kick_records")] = json.loads(row["data"])
+            data.pop(self.FOLLOW_DEFAULT_MARKER, None)
+            if set(data).issubset(self.default_cfg) and all(
+                data.get(key) == value for key, value in self.default_cfg.items()
+            ):
+                await self._conn.execute(
+                    "DELETE FROM groups WHERE group_id = ?", (gid,)
+                )
+                self._cache.pop(gid, None)
+            else:
+                data[self.FOLLOW_DEFAULT_MARKER] = False
+                await self._conn.execute(
+                    "UPDATE groups SET data = ? WHERE group_id = ?",
+                    (json.dumps(data, ensure_ascii=False), gid),
+                )
+        await self._conn.commit()
+
+    async def get_auxiliary(self, gid: str, field: str, default=None):
+        key = (str(gid), field)
+        if key not in self._auxiliary_cache:
+            async with self._conn.execute(
+                "SELECT data FROM group_auxiliary WHERE group_id = ? AND field = ?",
+                key,
+            ) as cur:
+                row = await cur.fetchone()
+            self._auxiliary_cache[key] = (
+                json.loads(row["data"]) if row else copy.deepcopy(default)
+            )
+        return copy.deepcopy(self._auxiliary_cache[key])
+
+    async def set_auxiliary(self, gid: str, field: str, value):
+        key = (str(gid), field)
+        await self._conn.execute(
+            """
+            INSERT INTO group_auxiliary(group_id, field, data)
+            VALUES (?, ?, ?)
+            ON CONFLICT(group_id, field) DO UPDATE SET data=excluded.data;
+            """,
+            (key[0], key[1], json.dumps(value, ensure_ascii=False)),
+        )
+        await self._conn.commit()
+        self._auxiliary_cache[key] = copy.deepcopy(value)
 
     async def _save_to_db(self, gid: str, data):
         if not self._conn:

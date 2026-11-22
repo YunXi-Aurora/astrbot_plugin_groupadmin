@@ -286,7 +286,7 @@ class NormalHandle:
         gid = str(event.get_group_id())
         operator_id = str(event.get_sender_id())
         operator_name = await get_nickname(event, user_id=operator_id)
-        records = list(await self.db.get(gid, "kick_records", []))
+        records = list(await self.db.get_auxiliary(gid, "kick_records", []))
         records.append(
             {
                 "time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
@@ -298,7 +298,11 @@ class NormalHandle:
                 "context": context,
             }
         )
-        await self.db.set(gid, "kick_records", records[-self.cfg.quote_kick_records_limit :])
+        await self.db.set_auxiliary(
+            gid,
+            "kick_records",
+            records[-self.cfg.quote_kick_records_limit :],
+        )
 
     async def append_kick_note(
         self,
@@ -309,7 +313,7 @@ class NormalHandle:
     ) -> str:
         """私聊场景下为最近一条引用踢出记录追加管理员手动补充（带署名留痕）。"""
         gid = str(group_id)
-        records = list(await self.db.get(gid, "kick_records", []))
+        records = list(await self.db.get_auxiliary(gid, "kick_records", []))
         if not records:
             return f"群{gid}暂无引用踢出记录"
         indexes = [
@@ -328,7 +332,7 @@ class NormalHandle:
                 "text": note,
             }
         )
-        await self.db.set(gid, "kick_records", records)
+        await self.db.set_auxiliary(gid, "kick_records", records)
         return (
             f"已补充【{record['target_name']}({target_id})】的踢出原因记录："
             f"\n{note}"
@@ -339,7 +343,7 @@ class NormalHandle:
     ) -> str:
         """查询踢出原因记录，返回待 T2I 渲染的文本"""
         gid = str(event.get_group_id())
-        records = list(await self.db.get(gid, "kick_records", []))
+        records = list(await self.db.get_auxiliary(gid, "kick_records", []))
         if target_id:
             records = [r for r in records if r.get("target_id") == str(target_id)]
             if not records:
