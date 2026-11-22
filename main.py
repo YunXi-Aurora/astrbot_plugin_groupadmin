@@ -28,7 +28,7 @@ from .permission import (
     require_admin,
     require_member,
 )
-from .utils import get_ats, parse_ban_args, parse_bool, split_list_arg
+from .utils import get_ats, get_replyer_id, parse_ban_args, parse_bool, split_list_arg
 from .official import OfficialHandle, HELP, is_official, official_tool
 from .web import QQAdminWebController
 
@@ -771,18 +771,24 @@ class QQAdminPlugin(Star):
         self,
         event: AiocqhttpMessageEvent,
         target_id: str = "",
+        reason: str = "",
     ):
         """
-        将指定用户踢出当前群聊；省略 target_id 时可引用消息踢出被引用者。
+        将指定用户踢出当前群聊，并可携带踢出理由（写入踢出记录，供 /踢出原因 查询）。
+        省略 target_id 且当前消息引用了某条消息时，被引用者作为踢出目标。
+        踢出理由：显式传入 reason 优先；未传时若引用了消息，被引用消息原文作为理由。
         Args:
             target_id(string): 可选，OneBot用户QQ号或官方当前群的成员OpenID；省略时从引用消息获取目标。
+            reason(string): 可选，踢出理由；省略时若引用了消息则用被引用消息原文。
         """
         if error := await perm_manager.llm_perm_block(
             event, bot_perm=PermLevel.BOT_ADMIN
         ):
             yield error
             return
-        if result := await self.normal.set_group_kick(event, target_id=target_id):
+        if result := await self.normal.set_group_kick(
+            event, target_id=target_id, reason=str(reason or "").strip()
+        ):
             yield result
 
     @filter.llm_tool()
@@ -1255,23 +1261,21 @@ class QQAdminPlugin(Star):
     async def llm_recall_and_ban(
         self,
         event: AiocqhttpMessageEvent,
-        user_id: str,
+        user_id: str = "",
         count: int = 1,
         message_ids: str = "",
-        duration: str = "",
         reason: str = "",
         need_auth: bool = True,
     ):
         """
-        一次性完成「撤回某人的消息 + 禁言该用户」，用一步代替先查消息ID再分别撤回和禁言。
-        适用于「把他说的话撤了并且禁言」「撤回并踢出前先处置」这类组合要求。
-        撤回与禁言各自独立执行，任一失败不影响另一项，结果会分别汇报。
+        一次性完成「踢出某人 + 撤回其消息」，先踢人后撤回：人先被移出群，再撤回他的消息。
+        适用于「把他踢了并把他发的东西撤了」「踢出并清理他的消息」这类组合要求。
+        踢人与撤回各自独立执行，任一失败不影响另一项，结果会分别汇报。
         Args:
-            user_id(string): 要处置的用户QQ号（必填），用于禁言与按人撤回
+            user_id(string): 要踢出的用户QQ号；省略时从当前引用消息获取被引用者作为目标
             count(number): 撤回该用户最近多少条消息，默认1；传了 message_ids 时此项忽略
             message_ids(string): 可选，精确撤回指定的消息ID（英文逗号分隔，如 "123,456"），用于撤回不连续的指定消息；留空则按 user_id + count 撤回
-            duration(string): 禁言时长，支持单位换算如 "1h" / "30分钟" / "2天"；留空则使用随机时长；填 "0" 表示只撤回不禁言
-            reason(string): 可选，处置原因，会一并记录到返回结果里便于在群内说明
+            reason(string): 可选，踢出理由；省略时若引用了消息则用被引用消息原文作为理由。理由会写入踢出记录，供 /踢出原因 查询
             need_auth(boolean): 是否要进行鉴权，机器人自行发起操作则填False, 当前用户要发起操作则填True
         """
         if event.platform_meta.name != "aiocqhttp":
@@ -1288,13 +1292,28 @@ class QQAdminPlugin(Star):
                 return
 
         target = str(user_id or "").strip()
+        kick_reason = str(reason or "").strip()
         if not target:
-            yield "请提供要处置的 user_id"
-            return
+            replyer_id = get_replyer_id(event)
+            if replyer_id and replyer_id != "0":
+                target = replyer_id
+            else:
+                yield "请提供要处置的 user_id，或引用其消息"
+                return
 
         results = []
 
-        # ---------- 第一步：撤回 ----------
+        # ---------- 第一步：踢出（留档：自定义理由 > 引用消息原文） ----------
+        try:
+            kick_result = await self.normal.set_group_kick(
+                event, target_id=target, reason=kick_reason
+            )
+            results.append(f"踢出：{kick_result}")
+        except Exception as e:
+            logger.error(f"组合处置踢出失败 群{event.get_group_id()}: {e!r}")
+            results.append(f"踢出：失败（{e}）")
+
+        # ---------- 第二步：撤回 ----------
         ids_str = str(message_ids or "").strip()
         recall_count = 0
         recall_err = ""
@@ -1330,30 +1349,9 @@ class QQAdminPlugin(Star):
         else:
             results.append("撤回：未撤到消息（可能已超时或不在最近窗口内）")
 
-        # ---------- 第二步：禁言 ----------
-        ban_arg = str(duration or "").strip()
-        if ban_arg == "0":
-            results.append("禁言：按要求跳过（duration=0 只撤回）")
-        else:
-            try:
-                ban_result = await self.normal.set_group_ban(
-                    event,
-                    ban_time=ban_arg if ban_arg else None,
-                    target_id=[target],
-                    instant_unban=False,
-                )
-            except Exception as e:
-                logger.error(f"组合处置禁言失败 群{event.get_group_id()}: {e!r}")
-                results.append(f"禁言：失败（{e}）")
-            else:
-                if ban_result:
-                    results.append(f"禁言：{ban_result}")
-                else:
-                    results.append("禁言：已下发")
-
         head = f"对 {target} 的处置完成"
-        if reason:
-            head += f"（原因：{reason}）"
+        if kick_reason:
+            head += f"（原因：{kick_reason}）"
         yield head + "\n" + "\n".join(results)
 
     @filter.llm_tool()

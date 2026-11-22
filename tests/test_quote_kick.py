@@ -203,6 +203,36 @@ class TestQuoteKick(unittest.TestCase):
     def _handle(self, cfg=None):
         return normal_handle.NormalHandle(cfg or FakeCfg(), self.db)
 
+    def test_kick_with_custom_reason_records_and_replies(self):
+        """显式 target_id + 自定义理由：踢出、留档理由为自定义文本、回复带理由"""
+        handle = self._handle()
+        event = make_event([])
+        bot = FakeBot()
+        event.bot = bot
+
+        result = asyncio.run(handle.set_group_kick(event, target_id="888", reason="屡次发布广告"))
+
+        self.assertEqual(len(bot.kick_calls), 1)
+        self.assertEqual(bot.kick_calls[0]["user_id"], 888)
+        self.assertIn("已将【888-成员888】踢出本群，踢出原因：屡次发布广告", result)
+        record = self.db.store[("67890", "kick_records")][0]
+        self.assertEqual(record["target_id"], "888")
+        self.assertEqual(record["reason"], "屡次发布广告")
+
+    def test_quote_kick_custom_reason_overrides_reply_text(self):
+        """引用踢出 + 自定义理由：自定义理由优先于被引用消息原文"""
+        handle = self._handle()
+        event = make_event([Reply(sender_id=12345, message_str="发广告刷屏")])
+        bot = FakeBot()
+        event.bot = bot
+
+        result = asyncio.run(handle.set_group_kick(event, reason="多次警告无效"))
+
+        self.assertEqual(bot.kick_calls[0]["user_id"], 12345)
+        self.assertIn("踢出原因：多次警告无效", result)
+        record = self.db.store[("67890", "kick_records")][0]
+        self.assertEqual(record["reason"], "多次警告无效")
+
     def test_quote_kick_kicks_replyer_with_reason_and_record(self):
         """引用踢出：踢被引用者，原因=被引用消息，记录含聊天记录补充"""
         handle = self._handle(FakeCfg(quote_kick_context_count=10))

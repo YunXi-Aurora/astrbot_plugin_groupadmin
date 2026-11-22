@@ -201,14 +201,17 @@ class NormalHandle:
         return "\n".join(results) if results else "未指定要设置头衔的用户"
 
     async def set_group_kick(
-        self, event: AiocqhttpMessageEvent, target_id: str | int = ""
+        self,
+        event: AiocqhttpMessageEvent,
+        target_id: str | int = "",
+        reason: str = "",
     ):
         tids = [target_id] if target_id else get_ats(event)
         # 引用踢出：未@任何用户但引用了消息时，被引用者作为踢出目标
         if not tids and self.cfg.quote_kick_enabled:
             replyer_id = get_replyer_id(event)
             if replyer_id and replyer_id != "0":
-                return await self.kick_by_reply(event, replyer_id)
+                return await self.kick_by_reply(event, replyer_id, reason=reason)
         results = []
         for tid in tids:
             target_name = await get_nickname(event, user_id=tid)
@@ -217,23 +220,29 @@ class NormalHandle:
                 user_id=int(tid),
                 reject_add_request=False,
             )
-            results.append(f"已将【{tid}-{target_name}】踢出本群")
+            if reason.strip():
+                # LLM 路径显式给了理由：同样留档，供其他管理员追溯
+                context = await self._kick_context(event, tid)
+                await self._save_kick_record(
+                    event, tid, target_name, reason.strip(), context
+                )
+                results.append(
+                    f"已将【{tid}-{target_name}】踢出本群，踢出原因：{reason.strip()}"
+                )
+            else:
+                results.append(f"已将【{tid}-{target_name}】踢出本群")
         return "\n".join(results) if results else "未指定要踢出的用户"
 
     async def kick_by_reply(
-        self, event: AiocqhttpMessageEvent, target_id: str
+        self, event: AiocqhttpMessageEvent, target_id: str, reason: str = ""
     ) -> str:
         """引用踢出：被引用者作为踢出目标，被引用消息作为踢出原因，并留存记录供其他管理员查询。
 
         顺序：先拉聊天记录补充与昵称，再踢出，最后落库——读取失败时不会
         出现“人已踢、记录缺失”的中间态。"""
-        reason = get_reply_message_str(event) or "（引用消息无文本内容）"
-        if self.cfg.quote_kick_context_count > 0:
-            context = await self._get_target_recent_texts(
-                event, target_id, count=self.cfg.quote_kick_context_count
-            )
-        else:
-            context = []
+        # 自定义理由优先；未提供时用被引用消息原文作为理由
+        reason = reason.strip() or (get_reply_message_str(event) or "") or "（引用消息无文本内容）"
+        context = await self._kick_context(event, target_id)
         target_name = await get_nickname(event, user_id=target_id)
         await event.bot.set_group_kick(
             group_id=int(event.get_group_id()),
@@ -242,6 +251,14 @@ class NormalHandle:
         )
         await self._save_kick_record(event, target_id, target_name, reason, context)
         return f"已将【{target_id}-{target_name}】踢出本群，踢出原因：{reason}"
+
+    async def _kick_context(self, event: AiocqhttpMessageEvent, target_id: str) -> list[str]:
+        """按配置拉取被踢者最近文本消息作为留档补充；配置为 0 时不拉取"""
+        if self.cfg.quote_kick_context_count > 0:
+            return await self._get_target_recent_texts(
+                event, target_id, count=self.cfg.quote_kick_context_count
+            )
+        return []
 
     async def _get_target_recent_texts(
         self, event: AiocqhttpMessageEvent, target_id: str, count: int = 10
