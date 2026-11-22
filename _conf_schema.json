@@ -134,5 +134,33 @@
       "step": 10
     },
     "default": 100
+  },
+  "quote_kick_enabled": {
+    "description": "引用踢出开关",
+    "hint": "开启后 /踢了 引用消息时，被引用者作为踢出目标、被引用消息作为踢出原因；关闭则维持旧行为（提示未指定用户）",
+    "type": "bool",
+    "default": true
+  },
+  "quote_kick_context_count": {
+    "description": "引用踢出留档的聊天记录补充条数",
+    "hint": "引用踢出时从群历史自动拉取被踢者最近多少条文本消息作为聊天记录补充（T2I 图片里展示）。默认 0 = 不自动拉取，踢出原因仅记录被引用消息；需要自动补充时再开启。注意：群消息刷得多时被踢者消息可能滑出拉取窗口。",
+    "type": "int",
+    "slider": {
+      "min": 0,
+      "max": 50,
+      "step": 1
+    },
+    "default": 0
+  },
+  "quote_kick_records_limit": {
+    "description": "引用踢出记录每群留存上限",
+    "hint": "每群最多留存的引用踢出记录条数（/踢出原因 可查询），超出后丢弃最旧的",
+    "type": "int",
+    "slider": {
+      "min": 1,
+      "max": 100,
+      "step": 1
+    },
+    "default": 20
   }
 }
