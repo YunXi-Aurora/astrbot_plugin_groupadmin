@@ -7,7 +7,7 @@
 <p>
   <img alt="AstrBot" src="https://img.shields.io/badge/AstrBot-%E2%89%A5%204.24.2-12B7F5?style=flat-square">
   <img alt="Platform" src="https://img.shields.io/badge/platform-OneBot%20%7C%20QQ%20%E5%AE%98%E6%96%B9-2E3E55?style=flat-square">
-  <img alt="Commands" src="https://img.shields.io/badge/commands-45-3ECF8E?style=flat-square">
+  <img alt="Commands" src="https://img.shields.io/badge/commands-46-3ECF8E?style=flat-square">
   <img alt="LLM tools" src="https://img.shields.io/badge/LLM%20tools-23-8B5CF6?style=flat-square">
   <img alt="License" src="https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square">
 </p>
@@ -54,7 +54,7 @@
 </table>
 
 <p align="center">
-  <img src="./assets/readme/permission.svg" width="100%" alt="四级权限：超管全部 45 条 + 名单管理；特殊权限名单成员本群全部群管指令；QQ 群主/管理员基础管理 + 查询；普通成员仅 3 项查询">
+  <img src="./assets/readme/permission.svg" width="100%" alt="四级权限：超管全部 46 条 + 名单管理；特殊权限名单成员本群全部群管指令；QQ 群主/管理员基础管理 + 查询；普通成员仅 3 项查询">
 </p>
 
 | 级别 | 谁 | 能做什么 |

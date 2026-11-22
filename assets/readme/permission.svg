@@ -21,7 +21,7 @@
   <text x="84" y="152" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="21" font-weight="700" fill="#F2F6FC">AstrBot 超级管理员</text>
   <text x="368" y="152" font-family="-apple-system, BlinkMacSystemFont, Segoe UI, PingFang SC, Microsoft YaHei, sans-serif" font-size="20" fill="#A9B8CC">一切权限，含各群特殊权限名单管理</text>
   <rect x="986" y="134" width="136" height="26" rx="13" fill="#2A2413"/>
-  <text x="1000" y="152" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#F5C25B">全部 45 + 名单</text>
+  <text x="1000" y="152" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="17" fill="#F5C25B">全部 46 + 名单</text>
 
   <!-- 行 2 -->
   <rect x="56" y="182" width="1088" height="56" rx="10" fill="#16223A" stroke="#22304A" stroke-width="1"/>
